@@ -105,11 +105,11 @@
 // e-chalupy.cz is the master hub — all platforms sync into it.
 const CAL_URL = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics';
 
-// Multiple CORS proxies — tried in order, first success wins
+// Multiple CORS proxies — all tried in parallel, first success wins
 const PROXIES = [
-  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
   url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
   url => `https://thingproxy.freeboard.io/fetch/${url}`,
 ];
 
@@ -117,22 +117,19 @@ const CACHE_KEY = 'villa_cal_v2';
 const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12' };
 const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
 
-// ── Fetch with proxy fallback ────────────────────────────────────────────────
+// ── Fetch with parallel proxy race ──────────────────────────────────────────
+// All proxies are tried at the same time — fastest valid response wins
 async function fetchWithFallback(url) {
-  let lastErr;
-  for (const makeProxy of PROXIES) {
-    try {
-      const proxyUrl = makeProxy(url);
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      if (!text.includes('BEGIN:VCALENDAR')) throw new Error('Not a valid iCal response');
-      return text;
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-  throw lastErr || new Error('All proxies failed');
+  const tryProxy = async (makeProxy) => {
+    const proxyUrl = makeProxy(url);
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    if (!text.includes('BEGIN:VCALENDAR')) throw new Error('Not a valid iCal response');
+    return text;
+  };
+  // Promise.any resolves as soon as the first proxy succeeds
+  return Promise.any(PROXIES.map(p => tryProxy(p)));
 }
 
 // ── Cache helpers ────────────────────────────────────────────────────────────
