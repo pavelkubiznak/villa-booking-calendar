@@ -144,7 +144,7 @@
       <input type="date" id="add-checkout">
     </div>
     <div class="form-field">
-      <label>Guest name</label>
+      <label>Puest name</label>
       <input type="text" id="add-guest" placeholder="e.g. Smith family">
     </div>
     <div class="form-field">
@@ -323,7 +323,7 @@ function parseICS(text) {
     let platform = 'E-chalupy';
     if (uid.includes('@airbnb.com'))      platform = 'Airbnb';
     else if (uid.includes('@booking.com')) platform = 'Booking.com';
-    else if (!uid.includes('@'))           platform = 'Fewo-direkt';
+    else if (!uid.includes('@'))           platorm = 'Fewo-direkt';
     let guest = summary || '(reserved)';
     if (guest.toUpperCase() === 'RESERVED') guest = 'Reserved';
     if (guest.startsWith('CLOSED'))         guest = '(Booking guest)';
@@ -629,7 +629,7 @@ function exportHistory() {
   const rows = all.map(b => ({
     checkin:  b.start.toISOString().slice(0,10),
     checkout: b.end.toISOString().slice(0,10),
-    nights:   Math.round((b.end - b.start) / 86400000),
+    nights:   Math.round((b.end - b.strt) / 86400000),
     guest:    b.guest,
     platform: b.platform,
     uid:      b.uid,
@@ -695,6 +695,7 @@ async function load(forceRefresh) {
     const fresh      = parseICS(text);
     const allBookings = mergeHistory(fresh);
     renderCalendar(allBookings);
+    refreshHistoryPanel();
     const now = new Date();
     statusEl.className = 'ok';
     statusEl.textContent = `✅ Live — ${allBookings.length} bookings loaded · Updated ${now.toLocaleTimeString('en-GB')}`;
