@@ -119,13 +119,14 @@
   <button id="refresh-btn" class="btn" onclick="load(true)">🔄 Refresh now</button>
   <button class="btn secondary" onclick="scrollToToday()">📅 Jump to today</button>
   <button class="btn secondary" id="add-booking-btn" onclick="toggleAddForm()" style="border-color:#27AE60;color:#1E8449;">📝 Add past booking</button>
+  <button class="btn secondary" onclick="clearAllAndRefresh()" style="border-color:#E74C3C;color:#E74C3C;" title="Wipes all cached data and reloads fresh from the live feed">🗑 Clear cache &amp; reload</button>
 </div>
 
 <div class="legend">
   <div class="legend-item"><div class="legend-swatch" style="background:#E74C3C"></div> Airbnb</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#2980B9"></div> Booking.com</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direct</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#95A5A6;opacity:.35"></div> 🧹 Checkout/clean</div>
 </div>
 <p class="legend-note">Split bar = same-day checkout → check-in. Hover any day for guest details. Past months shown in grey — history is saved locally and never lost.</p>
@@ -144,7 +145,7 @@
       <input type="date" id="add-checkout">
     </div>
     <div class="form-field">
-      <label>Puest name</label>
+      <label>Guest name</label>
       <input type="text" id="add-guest" placeholder="e.g. Smith family">
     </div>
     <div class="form-field">
@@ -323,7 +324,7 @@ function parseICS(text) {
     let platform = 'E-chalupy';
     if (uid.includes('@airbnb.com'))      platform = 'Airbnb';
     else if (uid.includes('@booking.com')) platform = 'Booking.com';
-    else if (!uid.includes('@'))           platorm = 'Fewo-direkt';
+    else if (!uid.includes('@'))           platform = 'Fewo-direkt';
     let guest = summary || '(reserved)';
     if (guest.toUpperCase() === 'RESERVED') guest = 'Reserved';
     if (guest.startsWith('CLOSED'))         guest = '(Booking guest)';
@@ -624,12 +625,19 @@ function clearManualBookings() {
   refreshHistoryPanel();
 }
 
+function clearAllAndRefresh() {
+  if (!confirm('This will clear all cached booking data (including saved history) and reload fresh from the live feed.\n\nAny manually-entered past bookings will also be removed — export them first if needed.\n\nContinue?')) return;
+  try { localStorage.removeItem('villa_cal_v2'); } catch(_) {}
+  try { localStorage.removeItem('villa_cal_history_v1'); } catch(_) {}
+  location.reload();
+}
+
 function exportHistory() {
   const all  = getAllFromHistory();
   const rows = all.map(b => ({
     checkin:  b.start.toISOString().slice(0,10),
     checkout: b.end.toISOString().slice(0,10),
-    nights:   Math.round((b.end - b.strt) / 86400000),
+    nights:   Math.round((b.end - b.start) / 86400000),
     guest:    b.guest,
     platform: b.platform,
     uid:      b.uid,
