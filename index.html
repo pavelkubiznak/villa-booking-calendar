@@ -83,6 +83,30 @@
   .past-row td { color: #95A5A6; }
   .past-row .badge { opacity: 0.6; }
   .section-divider td { background:#F0F2F5; color:#78909C; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:5px 12px; }
+
+  /* Add booking form */
+  .add-form-panel { background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,0.09); padding:18px 20px; margin-bottom:18px; border-left:4px solid #27AE60; }
+  .add-form-panel h3 { font-size:13px; font-weight:700; color:#2C3E50; margin-bottom:6px; }
+  .add-form-panel p.hint { font-size:11px; color:#95A5A6; margin-bottom:14px; }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:12px; margin-bottom:14px; }
+  .form-field label { font-size:11px; font-weight:700; color:#78909C; display:block; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.3px; }
+  .form-field input, .form-field select {
+    width:100%; padding:8px 10px; border:1.5px solid #D5D8DC; border-radius:6px;
+    font-size:13px; color:#2C3E50; outline:none; transition:border-color 0.15s;
+  }
+  .form-field input:focus, .form-field select:focus { border-color:#27AE60; }
+  .form-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  #add-msg { font-size:11px; margin-top:8px; min-height:16px; }
+  .manual-badge { background:#E8F8F5; color:#1E8449; border:1px dashed #27AE60; }
+
+  /* History management panel */
+  .history-panel { background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,0.09); padding:14px 20px; margin-bottom:18px; }
+  .history-panel summary { font-size:12px; font-weight:600; color:#607D8B; cursor:pointer; user-select:none; }
+  .history-items { margin-top:12px; max-height:240px; overflow-y:auto; }
+  .history-item { display:flex; align-items:center; justify-content:space-between; padding:6px 0; border-bottom:1px solid #F0F2F5; font-size:12px; }
+  .history-item:last-child { border-bottom:none; }
+  .history-item .del-btn { font-size:10px; color:#E74C3C; border:none; background:none; cursor:pointer; padding:2px 6px; border-radius:4px; }
+  .history-item .del-btn:hover { background:#FDEDEC; }
 </style>
 </head>
 <body>
@@ -94,6 +118,7 @@
   <div id="status" class="loading">⏳ Loading bookings…</div>
   <button id="refresh-btn" class="btn" onclick="load(true)">🔄 Refresh now</button>
   <button class="btn secondary" onclick="scrollToToday()">📅 Jump to today</button>
+  <button class="btn secondary" id="add-booking-btn" onclick="toggleAddForm()" style="border-color:#27AE60;color:#1E8449;">📝 Add past booking</button>
 </div>
 
 <div class="legend">
@@ -104,6 +129,50 @@
   <div class="legend-item"><div class="legend-swatch" style="background:#95A5A6;opacity:.35"></div> 🧹 Checkout/clean</div>
 </div>
 <p class="legend-note">Split bar = same-day checkout → check-in. Hover any day for guest details. Past months shown in grey — history is saved locally and never lost.</p>
+
+<!-- ── Add past booking panel ─────────────────────────────────────────── -->
+<div id="add-form" class="add-form-panel" style="display:none">
+  <h3>📝 Add a past booking manually</h3>
+  <p class="hint">Enter bookings not available in the live feed. They're saved in your browser permanently and appear in the calendar &amp; cleaning stats.</p>
+  <div class="form-grid">
+    <div class="form-field">
+      <label>Check-in date *</label>
+      <input type="date" id="add-checkin">
+    </div>
+    <div class="form-field">
+      <label>Check-out date *</label>
+      <input type="date" id="add-checkout">
+    </div>
+    <div class="form-field">
+      <label>Guest name</label>
+      <input type="text" id="add-guest" placeholder="e.g. Smith family">
+    </div>
+    <div class="form-field">
+      <label>Platform *</label>
+      <select id="add-platform">
+        <option value="Airbnb">Airbnb</option>
+        <option value="Booking.com">Booking.com</option>
+        <option value="E-chalupy">E-chalupy</option>
+        <option value="Fewo-direkt">Fewo-direkt</option>
+      </select>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn" style="border-color:#27AE60;color:#fff;background:#27AE60;" onclick="addManualBooking()">💾 Save booking</button>
+    <button class="btn secondary" onclick="toggleAddForm()">Cancel</button>
+  </div>
+  <div id="add-msg"></div>
+</div>
+
+<!-- ── Saved history manager ──────────────────────────────────────────── -->
+<details id="history-panel" class="history-panel" style="display:none">
+  <summary>🗂 Manage saved history (<span id="hist-count">0</span> bookings stored locally)</summary>
+  <div class="history-items" id="history-items"></div>
+  <div style="margin-top:10px;display:flex;gap:8px;">
+    <button class="btn secondary" style="font-size:11px;" onclick="exportHistory()">⬇️ Export JSON</button>
+    <button class="btn secondary" style="font-size:11px;border-color:#E74C3C;color:#E74C3C;" onclick="clearManualBookings()">🗑 Clear manual entries only</button>
+  </div>
+</details>
 
 <div class="months" id="months"></div>
 
@@ -376,6 +445,7 @@ function renderCalendar(bookings) {
 
   renderStats(bookings, today);
   renderTable(bookings, today);
+  refreshHistoryPanel();
 }
 
 // ── Cleaning stats table ──────────────────────────────────────────────────────
@@ -451,6 +521,124 @@ function renderTable(bookings, today) {
     tb.appendChild(tr);
   });
   document.getElementById('summary').style.display = 'block';
+}
+
+// ── Manual booking entry ──────────────────────────────────────────────────────
+function toggleAddForm() {
+  const form = document.getElementById('add-form');
+  const open = form.style.display !== 'none';
+  form.style.display = open ? 'none' : '';
+  document.getElementById('add-msg').textContent = '';
+  if (!open) document.getElementById('add-checkin').focus();
+}
+
+function addManualBooking() {
+  const checkin  = document.getElementById('add-checkin').value;
+  const checkout = document.getElementById('add-checkout').value;
+  const guestVal = document.getElementById('add-guest').value.trim();
+  const platform = document.getElementById('add-platform').value;
+  const msgEl    = document.getElementById('add-msg');
+
+  if (!checkin || !checkout) {
+    msgEl.style.color = '#E74C3C';
+    msgEl.textContent = '⚠️ Please fill in both check-in and check-out dates.';
+    return;
+  }
+
+  // Build dates — treat input values as local dates
+  const [cy, cm, cd] = checkin.split('-').map(Number);
+  const [oy, om, od] = checkout.split('-').map(Number);
+  const start = new Date(cy, cm - 1, cd);
+  const end   = new Date(oy, om - 1, od);
+
+  if (end <= start) {
+    msgEl.style.color = '#E74C3C';
+    msgEl.textContent = '⚠️ Check-out must be after check-in.';
+    return;
+  }
+
+  const guest = guestVal || '(manual entry)';
+  const uid   = `manual-${cy}${String(cm).padStart(2,'0')}${String(cd).padStart(2,'0')}-${Math.random().toString(36).slice(2,8)}`;
+  const ev    = { uid, start, end, guest, platform };
+
+  mergeHistory([ev]);
+
+  const allBookings = getAllFromHistory();
+  renderCalendar(allBookings);
+  refreshHistoryPanel();
+
+  const nights = Math.round((end - start) / 86400000);
+  msgEl.style.color = '#1E8449';
+  msgEl.textContent = `✅ Saved — ${fmtD(start)} → ${fmtD(end)}, ${nights} night${nights!==1?'s':''}, ${guest}, ${platform}`;
+
+  // Clear dates for next entry, keep platform selection
+  document.getElementById('add-checkin').value  = '';
+  document.getElementById('add-checkout').value = '';
+  document.getElementById('add-guest').value    = '';
+  document.getElementById('add-checkin').focus();
+}
+
+// ── History manager panel ─────────────────────────────────────────────────────
+function refreshHistoryPanel() {
+  const history = loadHistory();
+  const panel   = document.getElementById('history-panel');
+  const items   = document.getElementById('history-items');
+  const count   = document.getElementById('hist-count');
+  const all     = historyToEvents(history);
+  count.textContent = all.length;
+  panel.style.display = all.length ? '' : 'none';
+
+  items.innerHTML = '';
+  // Show most recent first
+  [...all].reverse().forEach(b => {
+    const isManual = b.uid.startsWith('manual-');
+    const nights   = Math.round((b.end - b.start) / 86400000);
+    const div      = document.createElement('div');
+    div.className  = 'history-item';
+    div.innerHTML  = `
+      <span>
+        <span class="badge ${isManual?'manual-badge':''}" style="${isManual?'':'background:'+LIGHT[b.platform]+';color:'+COL[b.platform]}">${isManual?'✏️ manual':b.platform}</span>
+        &nbsp;<strong>${fmtD(b.start)}</strong> → ${fmtD(b.end)} &nbsp;·&nbsp; ${nights}n &nbsp;·&nbsp; ${b.guest}
+      </span>
+      ${isManual ? `<button class="del-btn" onclick="deleteEntry('${b.uid.replace(/'/g,"\\'")}')">✕ delete</button>` : ''}`;
+    items.appendChild(div);
+  });
+}
+
+function deleteEntry(uid) {
+  const history = loadHistory();
+  delete history[uid];
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch(_) {}
+  const allBookings = getAllFromHistory();
+  renderCalendar(allBookings);
+  refreshHistoryPanel();
+}
+
+function clearManualBookings() {
+  if (!confirm('Delete all manually-entered bookings? (Feed-sourced bookings will remain.)')) return;
+  const history = loadHistory();
+  Object.keys(history).forEach(uid => { if (uid.startsWith('manual-')) delete history[uid]; });
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch(_) {}
+  const allBookings = getAllFromHistory();
+  renderCalendar(allBookings);
+  refreshHistoryPanel();
+}
+
+function exportHistory() {
+  const all  = getAllFromHistory();
+  const rows = all.map(b => ({
+    checkin:  b.start.toISOString().slice(0,10),
+    checkout: b.end.toISOString().slice(0,10),
+    nights:   Math.round((b.end - b.start) / 86400000),
+    guest:    b.guest,
+    platform: b.platform,
+    uid:      b.uid,
+  }));
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type:'application/json' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `villa-bookings-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
