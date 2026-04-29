@@ -18,12 +18,14 @@
   #status.cached  { background:#FEF9E7; color:#F39C12; }
   #status.error   { background:#FDEDEC; color:#E74C3C; }
 
-  #refresh-btn {
+  .btn {
     font-size: 12px; padding: 6px 14px; border-radius: 6px; border: 1.5px solid #2980B9;
     background: #fff; color: #2980B9; cursor: pointer; font-weight: 600; white-space: nowrap;
   }
-  #refresh-btn:hover { background: #EBF5FB; }
-  #refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn:hover { background: #EBF5FB; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.secondary { border-color: #95A5A6; color: #607D8B; }
+  .btn.secondary:hover { background: #ECEFF1; }
 
   .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 6px; align-items: center; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
@@ -33,6 +35,8 @@
   .months { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
   .month-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.09); overflow: hidden; }
   .month-header { background: #2C3E50; color: #fff; padding: 9px 14px; font-size: 13px; font-weight: 700; }
+  .month-header.past { background: #607D8B; }
+  .month-header.current { background: #1A5276; }
   .day-names { display: grid; grid-template-columns: repeat(7, 1fr); }
   .day-name { text-align: center; font-size: 9px; font-weight: 700; color: #B0BEC5; padding: 5px 0 4px; text-transform: uppercase; }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
@@ -45,6 +49,7 @@
   .day-cell.empty .day-num { color: transparent; }
   .day-cell.today { background: #E3F2FD; }
   .day-cell.today .day-num { color: #1565C0; font-weight: 800; }
+  .day-cell.past-day .day-num { color: #B0BEC5; }
 
   .bar-row { position: relative; height: 10px; margin: 1px 0; overflow: visible; }
   .bar-occ { position: absolute; top: 0; bottom: 0; left: -1px; right: -1px; }
@@ -55,6 +60,10 @@
   .bar-in  { position: absolute; top: 0; bottom: 0; left: 50%; right: -1px; border-radius: 5px 0 0 5px; }
   .co-icon { font-size: 8px; text-align: center; line-height: 1; padding-top: 1px; }
 
+  /* Fade past booking bars slightly */
+  .past-month .bar-occ, .past-month .bar-checkout,
+  .past-month .bar-out, .past-month .bar-in { opacity: 0.5; }
+
   .day-cell:hover .tip { display: block; }
   .tip {
     display: none; position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%);
@@ -64,22 +73,27 @@
   .tip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#1C2833; }
 
   .summary { margin-top: 26px; background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,0.09); overflow:hidden; }
-  .summary-header { background:#2C3E50; color:#fff; padding:9px 16px; font-size:13px; font-weight:700; }
+  .summary-header { background:#2C3E50; color:#fff; padding:9px 16px; font-size:13px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+  .summary-header .toggle-link { font-size:11px; font-weight:400; opacity:0.8; cursor:pointer; text-decoration:underline; }
   table { width:100%; border-collapse:collapse; }
   th { background:#ECEFF1; font-size:10px; font-weight:700; color:#78909C; text-transform:uppercase; padding:7px 12px; text-align:left; }
   td { padding:8px 12px; font-size:12px; border-bottom:1px solid #F5F6FA; vertical-align:middle; }
   tr:last-child td { border-bottom:none; }
   .badge { display:inline-block; padding:2px 7px; border-radius:9px; font-size:10px; font-weight:700; }
+  .past-row td { color: #95A5A6; }
+  .past-row .badge { opacity: 0.6; }
+  .section-divider td { background:#F0F2F5; color:#78909C; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; padding:5px 12px; }
 </style>
 </head>
 <body>
 
 <h1>🏡 Villa Booking Calendar</h1>
-<p class="subtitle">Live — syncs from all booking platforms on every load</p>
+<p class="subtitle">Live — syncs from all booking platforms on every load · History preserved locally</p>
 
 <div class="status-bar">
   <div id="status" class="loading">⏳ Loading bookings…</div>
-  <button id="refresh-btn" onclick="load(true)">🔄 Refresh now</button>
+  <button id="refresh-btn" class="btn" onclick="load(true)">🔄 Refresh now</button>
+  <button class="btn secondary" onclick="scrollToToday()">📅 Jump to today</button>
 </div>
 
 <div class="legend">
@@ -89,23 +103,42 @@
   <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#95A5A6;opacity:.35"></div> 🧹 Checkout/clean</div>
 </div>
-<p class="legend-note">Split bar = same-day checkout → check-in. Hover any day for guest details.</p>
+<p class="legend-note">Split bar = same-day checkout → check-in. Hover any day for guest details. Past months shown in grey — history is saved locally and never lost.</p>
 
 <div class="months" id="months"></div>
+
+<!-- Cleaning summary -->
+<div class="summary" id="stats-box" style="display:none">
+  <div class="summary-header">
+    🧹 Cleaning Summary — checkouts &amp; nights by month
+    <span class="toggle-link" onclick="toggleSection('stats-tbl-wrap')">hide/show</span>
+  </div>
+  <div id="stats-tbl-wrap">
+    <table>
+      <thead><tr><th>Month</th><th style="text-align:center">Checkouts</th><th style="text-align:center">Guest nights</th><th>Platforms</th></tr></thead>
+      <tbody id="stats-tbl"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Full booking list -->
 <div class="summary" id="summary" style="display:none">
-  <div class="summary-header">📋 Full Booking List</div>
-  <table>
-    <thead><tr><th>#</th><th>Check-in</th><th>Check-out</th><th>Guest</th><th>Nights</th><th>Platform</th></tr></thead>
-    <tbody id="tbl"></tbody>
-  </table>
+  <div class="summary-header">
+    📋 Full Booking List
+    <span class="toggle-link" onclick="toggleSection('tbl-wrap')">hide/show</span>
+  </div>
+  <div id="tbl-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Check-in</th><th>Check-out</th><th>Guest</th><th>Nights</th><th>Platform</th></tr></thead>
+      <tbody id="tbl"></tbody>
+    </table>
+  </div>
 </div>
 
 <script>
-// ── Config ──────────────────────────────────────────────────────────────────
-// e-chalupy.cz is the master hub — all platforms sync into it.
+// ── Config ────────────────────────────────────────────────────────────────────
 const CAL_URL = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics';
 
-// Multiple CORS proxies — all tried in parallel, first success wins
 const PROXIES = [
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
   url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
@@ -113,12 +146,12 @@ const PROXIES = [
   url => `https://thingproxy.freeboard.io/fetch/${url}`,
 ];
 
-const CACHE_KEY = 'villa_cal_v2';
+const CACHE_KEY   = 'villa_cal_v2';
+const HISTORY_KEY = 'villa_cal_history_v1';
 const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12' };
 const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
 
-// ── Fetch with parallel proxy race ──────────────────────────────────────────
-// All proxies are tried at the same time — fastest valid response wins
+// ── Parallel proxy fetch ──────────────────────────────────────────────────────
 async function fetchWithFallback(url) {
   const tryProxy = async (makeProxy) => {
     const proxyUrl = makeProxy(url);
@@ -128,26 +161,77 @@ async function fetchWithFallback(url) {
     if (!text.includes('BEGIN:VCALENDAR')) throw new Error('Not a valid iCal response');
     return text;
   };
-  // Promise.any resolves as soon as the first proxy succeeds
   return Promise.any(PROXIES.map(p => tryProxy(p)));
 }
 
-// ── Cache helpers ────────────────────────────────────────────────────────────
+// ── Short-term iCal cache (for offline / refresh resilience) ──────────────────
 function saveCache(text) {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ text, ts: Date.now() }));
-  } catch (_) {}
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ text, ts: Date.now() })); } catch (_) {}
 }
 function loadCache() {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (_) { return null; }
+  try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : null; } catch (_) { return null; }
 }
 
-// ── iCal parser ─────────────────────────────────────────────────────────────
+// ── Persistent booking history ────────────────────────────────────────────────
+// Stores every booking ever seen, keyed by UID. Survives feed pruning past events.
+// Keeps 18 months of history; auto-prunes older records.
+
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw);
+  } catch (_) { return {}; }
+}
+
+function mergeHistory(freshEvents) {
+  const history = loadHistory();
+
+  // Add / overwrite with fresh data from the feed
+  freshEvents.forEach(ev => {
+    history[ev.uid] = {
+      uid:      ev.uid,
+      startTs:  ev.start.getTime(),
+      endTs:    ev.end.getTime(),
+      guest:    ev.guest,
+      platform: ev.platform,
+    };
+  });
+
+  // Prune entries older than 18 months
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 18);
+  cutoff.setHours(0, 0, 0, 0);
+  Object.keys(history).forEach(uid => {
+    if (history[uid].endTs < cutoff.getTime()) delete history[uid];
+  });
+
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {}
+
+  return historyToEvents(history);
+}
+
+function historyToEvents(history) {
+  return Object.values(history).map(h => ({
+    uid:      h.uid,
+    start:    new Date(h.startTs),
+    end:      new Date(h.endTs),
+    guest:    h.guest,
+    platform: h.platform,
+  })).sort((a, b) => a.start - b.start);
+}
+
+function getAllFromHistory() {
+  return historyToEvents(loadHistory());
+}
+
+// ── iCal parser — includes past events ───────────────────────────────────────
 function parseICS(text) {
-  const today = new Date(); today.setHours(0,0,0,0);
+  // Keep everything that ended within the last 13 months (feed rarely goes further back anyway)
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 13);
+  cutoff.setHours(0, 0, 0, 0);
+
   const events = [];
   const raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const unfolded = raw.replace(/\n[ \t]/g, '');
@@ -166,15 +250,15 @@ function parseICS(text) {
     if (status && status !== 'CONFIRMED') return;
     const start = icsToDate(dtstart);
     const end   = icsToDate(dtend);
-    if (!start || !end || end <= today) return;
+    if (!start || !end || end < cutoff) return;
     let platform = 'E-chalupy';
-    if (uid.includes('@airbnb.com'))     platform = 'Airbnb';
+    if (uid.includes('@airbnb.com'))      platform = 'Airbnb';
     else if (uid.includes('@booking.com')) platform = 'Booking.com';
-    else if (!uid.includes('@'))         platform = 'Fewo-direkt';
+    else if (!uid.includes('@'))           platform = 'Fewo-direkt';
     let guest = summary || '(reserved)';
     if (guest.toUpperCase() === 'RESERVED') guest = 'Reserved';
     if (guest.startsWith('CLOSED'))         guest = '(Booking guest)';
-    events.push({ start, end, guest, platform });
+    events.push({ uid, start, end, guest, platform });
   });
   return events.sort((a, b) => a.start - b.start);
 }
@@ -185,10 +269,18 @@ function icsToDate(s) {
   return new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
 }
 
-// ── Calendar renderer ────────────────────────────────────────────────────────
-function sd(a,b) { return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
-function fmtD(d) { return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); }
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function sd(a, b) {
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+function fmtD(d) {
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+function fmtMonth(d) {
+  return d.toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+}
 
+// ── Calendar renderer ─────────────────────────────────────────────────────────
 function getDay(y, m, d, bookings) {
   const dt = new Date(y, m, d);
   let occ = null, checkout = null;
@@ -209,35 +301,53 @@ function getDay(y, m, d, bookings) {
   return null;
 }
 
+let todayCardId = null;
+
 function renderCalendar(bookings) {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const DAYS   = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  const now = new Date();
-  let cur  = new Date(now.getFullYear(), now.getMonth(), 1);
+  const today     = new Date(); today.setHours(0,0,0,0);
+  const now       = new Date();
+  const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const MONTHS    = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const DAYS      = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  // Show 6 months back → 14 months forward
+  let cur  = new Date(now.getFullYear(), now.getMonth() - 6, 1);
   const stop = new Date(now.getFullYear(), now.getMonth() + 14, 0);
+
   const mc = document.getElementById('months');
   mc.innerHTML = '';
+  todayCardId = null;
+
   while (cur <= stop) {
     const y = cur.getFullYear(), m = cur.getMonth();
-    const dim = new Date(y,m+1,0).getDate();
-    const firstDow = (new Date(y,m,1).getDay()+6)%7;
+    const dim      = new Date(y, m+1, 0).getDate();
+    const firstDow = (new Date(y, m, 1).getDay() + 6) % 7;
+    const isPast   = cur < thisMonth;
+    const isCurrent = y===now.getFullYear() && m===now.getMonth();
+    const cardId   = `month-${y}-${m}`;
+    if (isCurrent) todayCardId = cardId;
+
     const card = document.createElement('div');
     card.className = 'month-card';
+    card.id = cardId;
+    const headerCls = isPast ? 'past' : (isCurrent ? 'current' : '');
     card.innerHTML = `
-      <div class="month-header">${MONTHS[m]} ${y}</div>
+      <div class="month-header ${headerCls}">${MONTHS[m]} ${y}${isPast ? ' ✓' : ''}</div>
       <div class="day-names">${DAYS.map(n=>`<div class="day-name">${n}</div>`).join('')}</div>
-      <div class="cal-grid" id="g${y}${m}"></div>`;
+      <div class="cal-grid ${isPast?'past-month':''}" id="g${y}${m}"></div>`;
     mc.appendChild(card);
+
     const grid = card.querySelector(`#g${y}${m}`);
     for (let i=0; i<firstDow; i++) {
-      const c=document.createElement('div'); c.className='day-cell empty';
+      const c = document.createElement('div'); c.className='day-cell empty';
       c.innerHTML='<div class="day-num"> </div>'; grid.appendChild(c);
     }
     for (let d=1; d<=dim; d++) {
-      const cell = document.createElement('div');
-      const isToday = sd(new Date(y,m,d), today);
-      cell.className = 'day-cell'+(isToday?' today':'');
+      const cell   = document.createElement('div');
+      const dt     = new Date(y, m, d);
+      const isToday  = sd(dt, today);
+      const isPastDay = dt < today && !isToday;
+      cell.className = 'day-cell' + (isToday?' today':'') + (isPastDay?' past-day':'');
       const hit = getDay(y, m, d, bookings);
       let barHtml='', tipLines=[];
       if (hit) {
@@ -263,14 +373,76 @@ function renderCalendar(bookings) {
     }
     cur = new Date(y, m+1, 1);
   }
-  const tb = document.getElementById('tbl');
-  tb.innerHTML = '';
-  bookings.forEach((b,i) => {
-    const n = Math.round((b.end - b.start)/86400000);
+
+  renderStats(bookings, today);
+  renderTable(bookings, today);
+}
+
+// ── Cleaning stats table ──────────────────────────────────────────────────────
+function renderStats(bookings, today) {
+  const monthMap = {};
+  bookings.forEach(b => {
+    // Checkout date determines which month cleaning happens
+    const key = `${b.end.getFullYear()}-${String(b.end.getMonth()+1).padStart(2,'0')}`;
+    if (!monthMap[key]) monthMap[key] = { date: b.end, checkouts: 0, nights: 0, platforms: {} };
+    monthMap[key].checkouts++;
+    monthMap[key].nights += Math.round((b.end - b.start) / 86400000);
+    monthMap[key].platforms[b.platform] = (monthMap[key].platforms[b.platform] || 0) + 1;
+  });
+
+  const stb = document.getElementById('stats-tbl');
+  stb.innerHTML = '';
+  const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  Object.keys(monthMap).sort().forEach((key, i) => {
+    const data   = monthMap[key];
+    const mDate  = new Date(data.date.getFullYear(), data.date.getMonth(), 1);
+    const isPast = mDate < thisMonth;
+    const platformStr = Object.entries(data.platforms)
+      .sort((a,b)=>b[1]-a[1])
+      .map(([p,n]) => `<span class="badge" style="background:${LIGHT[p]};color:${COL[p]}">${p} ×${n}</span>`)
+      .join(' ');
     const tr = document.createElement('tr');
     tr.style.background = i%2?'#FAFAFA':'#fff';
+    if (isPast) tr.className = 'past-row';
+    tr.innerHTML = `
+      <td><strong>${fmtMonth(mDate)}</strong>${isPast?' <span style="font-size:10px;color:#B0BEC5">past</span>':''}</td>
+      <td style="text-align:center;font-weight:700;font-size:15px">${data.checkouts}</td>
+      <td style="text-align:center">${data.nights}</td>
+      <td style="font-size:11px">${platformStr}</td>`;
+    stb.appendChild(tr);
+  });
+  document.getElementById('stats-box').style.display = 'block';
+}
+
+// ── Full booking table ────────────────────────────────────────────────────────
+function renderTable(bookings, today) {
+  const tb = document.getElementById('tbl');
+  tb.innerHTML = '';
+  let pastDividerAdded = false;
+  let futureDividerAdded = false;
+  let rowNum = 0;
+
+  bookings.forEach(b => {
+    const isPast = b.end <= today;
+
+    if (!isPast && !futureDividerAdded) {
+      if (rowNum > 0) {
+        const div = document.createElement('tr');
+        div.className = 'section-divider';
+        div.innerHTML = `<td colspan="6">▸ Upcoming bookings</td>`;
+        tb.appendChild(div);
+      }
+      futureDividerAdded = true;
+    }
+
+    rowNum++;
+    const n  = Math.round((b.end - b.start) / 86400000);
+    const tr = document.createElement('tr');
+    tr.style.background = rowNum%2?'#FAFAFA':'#fff';
+    if (isPast) tr.className = 'past-row';
     tr.innerHTML=`
-      <td style="color:#B0BEC5">${i+1}</td>
+      <td style="color:#B0BEC5">${rowNum}</td>
       <td><strong>${fmtD(b.start)}</strong></td>
       <td>${fmtD(b.end)}</td>
       <td>${b.guest}</td>
@@ -281,58 +453,73 @@ function renderCalendar(bookings) {
   document.getElementById('summary').style.display = 'block';
 }
 
-// ── Load ─────────────────────────────────────────────────────────────────────
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function scrollToToday() {
+  if (todayCardId) {
+    const el = document.getElementById(todayCardId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+// ── Load ──────────────────────────────────────────────────────────────────────
 let isLoading = false;
 
 async function load(forceRefresh) {
   if (isLoading) return;
   isLoading = true;
   const statusEl = document.getElementById('status');
-  const btn = document.getElementById('refresh-btn');
+  const btn      = document.getElementById('refresh-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Refreshing…';
   statusEl.className = 'loading';
   statusEl.textContent = '⏳ Loading bookings…';
 
-  // If not a forced refresh, try cache first for instant display
+  // On first load (not forced), show history + cache instantly
   if (!forceRefresh) {
-    const cached = loadCache();
-    if (cached) {
-      try {
-        const bookings = parseICS(cached.text);
-        renderCalendar(bookings);
-        const age = Math.round((Date.now() - cached.ts) / 60000);
-        statusEl.className = 'cached';
-        statusEl.textContent = `📦 Showing cached data (${age} min ago) — fetching fresh…`;
-      } catch (_) {}
+    const history = getAllFromHistory();
+    if (history.length) {
+      renderCalendar(history);
+      statusEl.className = 'cached';
+      statusEl.textContent = `📦 Showing ${history.length} saved bookings — fetching fresh…`;
+    } else {
+      // Fall back to raw iCal cache if history is empty (first ever load)
+      const cached = loadCache();
+      if (cached) {
+        try {
+          const events = parseICS(cached.text);
+          const all = mergeHistory(events);
+          renderCalendar(all);
+          statusEl.className = 'cached';
+          statusEl.textContent = `📦 Showing cached data — fetching fresh…`;
+        } catch (_) {}
+      }
     }
   }
 
   try {
-    const text = await fetchWithFallback(CAL_URL);
+    const text       = await fetchWithFallback(CAL_URL);
     saveCache(text);
-    const bookings = parseICS(text);
-    renderCalendar(bookings);
+    const fresh      = parseICS(text);
+    const allBookings = mergeHistory(fresh);
+    renderCalendar(allBookings);
     const now = new Date();
     statusEl.className = 'ok';
-    statusEl.textContent = `✅ Live — ${bookings.length} bookings loaded · Updated ${now.toLocaleTimeString('en-GB')}`;
+    statusEl.textContent = `✅ Live — ${allBookings.length} bookings loaded · Updated ${now.toLocaleTimeString('en-GB')}`;
   } catch (err) {
-    // If live fetch fails, try cache
-    const cached = loadCache();
-    if (cached) {
-      try {
-        const bookings = parseICS(cached.text);
-        renderCalendar(bookings);
-        const age = Math.round((Date.now() - cached.ts) / 60000);
-        statusEl.className = 'cached';
-        statusEl.textContent = `⚠️ Offline — showing cached data from ${age} min ago. Click Refresh to retry.`;
-      } catch (_) {
-        statusEl.className = 'error';
-        statusEl.textContent = `❌ Could not load data: ${err.message}`;
-      }
+    // Live fetch failed — show whatever history we have
+    const history = getAllFromHistory();
+    if (history.length) {
+      renderCalendar(history);
+      statusEl.className = 'cached';
+      statusEl.textContent = `⚠️ Offline — showing ${history.length} saved bookings. Click Refresh to retry.`;
     } else {
       statusEl.className = 'error';
-      statusEl.textContent = `❌ Could not load data: ${err.message} — Click Refresh to retry.`;
+      statusEl.textContent = `❌ Could not load: ${err.message} — Click Refresh to retry.`;
     }
     console.error(err);
   } finally {
