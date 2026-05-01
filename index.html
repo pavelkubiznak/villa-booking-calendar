@@ -126,7 +126,7 @@
   <div class="legend-item"><div class="legend-swatch" style="background:#E74C3C"></div> Airbnb</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#2980B9"></div> Booking.com</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direct</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#95A5A6;opacity:.35"></div> 🧹 Checkout/clean</div>
 </div>
 <p class="legend-note">Split bar = same-day checkout → check-in. Hover any day for guest details. Past months shown in grey — history is saved locally and never lost.</p>
@@ -218,6 +218,8 @@ const PROXIES = [
 
 const CACHE_KEY   = 'villa_cal_v2';
 const HISTORY_KEY = 'villa_cal_history_v1';
+// Remote history stored on GitHub by n8n (never expires, accumulates forever)
+const REMOTE_HISTORY_URL = 'https://raw.githubusercontent.com/pavelkubiznak/villa-booking-calendar/main/data/history.json';
 const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12' };
 const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
 
@@ -662,6 +664,27 @@ function toggleSection(id) {
   if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 
+// ── Remote GitHub history (written by n8n every 6h) ──────────────────────────
+async function fetchAndMergeRemoteHistory() {
+  try {
+    const res = await fetch(REMOTE_HISTORY_URL + '?_=' + Date.now());
+    if (!res.ok) return 0;
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return 0;
+    // Convert stored {uid, start, end, guest, platform} → event objects with Date
+    const events = data.map(e => ({
+      uid:      e.uid,
+      start:    new Date(e.start + 'T00:00:00'),
+      end:      new Date(e.end   + 'T00:00:00'),
+      guest:    e.guest,
+      platform: e.platform,
+    })).filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
+    if (events.length === 0) return 0;
+    mergeHistory(events); // persists into localStorage too
+    return events.length;
+  } catch (_) { return 0; }
+}
+
 // ── Load ──────────────────────────────────────────────────────────────────────
 let isLoading = false;
 
@@ -698,15 +721,20 @@ async function load(forceRefresh) {
   }
 
   try {
-    const text       = await fetchWithFallback(CAL_URL);
+    // Fetch live iCal + remote GitHub history in parallel
+    const [text, remoteCount] = await Promise.all([
+      fetchWithFallback(CAL_URL),
+      fetchAndMergeRemoteHistory(),
+    ]);
     saveCache(text);
     const fresh      = parseICS(text);
     const allBookings = mergeHistory(fresh);
     renderCalendar(allBookings);
     refreshHistoryPanel();
     const now = new Date();
+    const remoteNote = remoteCount > 0 ? ` · +${remoteCount} from archive` : '';
     statusEl.className = 'ok';
-    statusEl.textContent = `✅ Live — ${allBookings.length} bookings loaded · Updated ${now.toLocaleTimeString('en-GB')}`;
+    statusEl.textContent = `✅ Live — ${allBookings.length} bookings loaded · Updated ${now.toLocaleTimeString('en-GB')}${remoteNote}`;
   } catch (err) {
     // Live fetch failed — show whatever history we have
     const history = getAllFromHistory();
