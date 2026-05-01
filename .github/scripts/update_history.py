@@ -3,7 +3,7 @@
 
 import json, re, sys
 from datetime import datetime
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 
 ICAL_URL     = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'
 HISTORY_FILE = 'data/history.json'
@@ -54,7 +54,10 @@ def main():
 
     print(f'Fetching {ICAL_URL}')
     try:
-        with urlopen(ICAL_URL, timeout=30) as r:
+        req = Request(ICAL_URL, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; villa-calendar-bot/1.0)'
+        })
+        with urlopen(req, timeout=30) as r:
             text = r.read().decode('utf-8', errors='replace')
     except Exception as e:
         print(f'ERROR: {e}', file=sys.stderr); sys.exit(1)
