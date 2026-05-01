@@ -1,1 +1,254 @@
-[]
+[
+  {
+    "uid": "18852-10696411@e-chalupy.cz",
+    "start": "2026-04-25",
+    "end": "2026-05-02",
+    "guest": "bohemia - Vrieling",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "6f84cc3c57d0d332daf948e0973eff6a@booking.com",
+    "start": "2026-05-08",
+    "end": "2026-05-10",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "18852-10544655@e-chalupy.cz",
+    "start": "2026-05-14",
+    "end": "2026-05-17",
+    "guest": "martiz od felixe",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "59bdcaeb186dab9d00115b0bf2e49ac5@booking.com",
+    "start": "2026-05-22",
+    "end": "2026-05-25",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "492a6252276e386e5f85e748cc13dde9@booking.com",
+    "start": "2026-05-29",
+    "end": "2026-05-31",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "2a1d927b496a60f4af6c03be1fd8b80a@booking.com",
+    "start": "2026-06-04",
+    "end": "2026-06-07",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "18852-10591964@e-chalupy.cz",
+    "start": "2026-06-11",
+    "end": "2026-06-14",
+    "guest": "Soňa Černá - brali si to i v roce 2025",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "442d8b3add5813150670cc47ecd4e6f0@booking.com",
+    "start": "2026-06-15",
+    "end": "2026-06-22",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "c01cd2de1d0e43d1c3cc34ed42400ed8@booking.com",
+    "start": "2026-06-26",
+    "end": "2026-07-02",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "1418fb94e984-e6c7e9832b93249c493a772a5dc9958e@airbnb.com",
+    "start": "2026-07-03",
+    "end": "2026-07-08",
+    "guest": "Reserved",
+    "platform": "Airbnb"
+  },
+  {
+    "uid": "18852-13141281@e-chalupy.cz",
+    "start": "2026-07-08",
+    "end": "2026-07-11",
+    "guest": "Kateřina Kokeš",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "18852-11306544@e-chalupy.cz",
+    "start": "2026-07-12",
+    "end": "2026-07-18",
+    "guest": "jens",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "18852-11157098@e-chalupy.cz",
+    "start": "2026-07-18",
+    "end": "2026-07-25",
+    "guest": "Anna",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "18852-11306654@e-chalupy.cz",
+    "start": "2026-07-25",
+    "end": "2026-08-01",
+    "guest": "(reserved)",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "18852-11531928@e-chalupy.cz",
+    "start": "2026-08-01",
+    "end": "2026-08-08",
+    "guest": "niklickova pes a vouickar",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "18852-11531560@e-chalupy.cz",
+    "start": "2026-08-08",
+    "end": "2026-08-15",
+    "guest": "Jana Flámová",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "374ecb7a-91d6-40a6-9fed-fc82639215c2",
+    "start": "2026-08-15",
+    "end": "2026-08-22",
+    "guest": "Unter Vorbehalt - Birk",
+    "platform": "Fewo-direkt"
+  },
+  {
+    "uid": "72959898141731fe581b70d9488b9740@booking.com",
+    "start": "2026-08-22",
+    "end": "2026-08-28",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "18852-13892877@e-chalupy.cz",
+    "start": "2026-08-28",
+    "end": "2026-08-30",
+    "guest": "Name:  Marius Marquardt - lodgify",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "3fe5dba568b5c9bc8cd5e3f61cb3097d@booking.com",
+    "start": "2026-08-30",
+    "end": "2026-09-06",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "18852-13887623@e-chalupy.cz",
+    "start": "2026-09-11",
+    "end": "2026-09-13",
+    "guest": "školení p. svoboda",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "1418fb94e984-2218a6a0bb12c35085b6a6e592f16796@airbnb.com",
+    "start": "2026-09-19",
+    "end": "2026-09-26",
+    "guest": "Reserved",
+    "platform": "Airbnb"
+  },
+  {
+    "uid": "bc987c7fcf8108eacad4a120617d542b@booking.com",
+    "start": "2026-10-02",
+    "end": "2026-10-04",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "18852-12542036@e-chalupy.cz",
+    "start": "2026-10-10",
+    "end": "2026-10-17",
+    "guest": "maeco nemecko",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "f68f96a21f736c8ef3b5390357d441df@booking.com",
+    "start": "2026-10-18",
+    "end": "2026-10-24",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "00d7773e-c446-4ada-b55f-9e46ce594415",
+    "start": "2026-10-30",
+    "end": "2026-11-02",
+    "guest": "Reserved - Matthias",
+    "platform": "Fewo-direkt"
+  },
+  {
+    "uid": "18852-13680591@e-chalupy.cz",
+    "start": "2026-11-02",
+    "end": "2026-11-30",
+    "guest": "rekonstrukce schody",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "18852-13680593@e-chalupy.cz",
+    "start": "2026-11-30",
+    "end": "2026-12-18",
+    "guest": "(reserved)",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "1418fb94e984-451bce4ed5c1abe69e37aa147093c78e@airbnb.com",
+    "start": "2026-12-19",
+    "end": "2026-12-26",
+    "guest": "Reserved",
+    "platform": "Airbnb"
+  },
+  {
+    "uid": "18852-11548029@e-chalupy.cz",
+    "start": "2026-12-26",
+    "end": "2027-01-03",
+    "guest": "Wäre das Haus noch frei ?odeslal: Julia Quast\\, telefon: 01627543449požadovaný termín: 28.12.2026-03.01.2027počet osob: 14 dospělých + 5 dětíe",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "e9bc93206e53cb00904d8704bfa81f0e@booking.com",
+    "start": "2027-01-03",
+    "end": "2027-01-10",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "18852-13017851@e-chalupy.cz",
+    "start": "2027-01-30",
+    "end": "2027-02-06",
+    "guest": "tanja německo",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "1418fb94e984-41dd34042e29350aaa1b708981741e6b@airbnb.com",
+    "start": "2027-02-06",
+    "end": "2027-02-13",
+    "guest": "Reserved",
+    "platform": "Airbnb"
+  },
+  {
+    "uid": "18852-13010132@e-chalupy.cz",
+    "start": "2027-02-20",
+    "end": "2027-02-27",
+    "guest": "mark kroeze 3015 EURo bez dalších poplatků - jenom městská taxa",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "18852-13892906@e-chalupy.cz",
+    "start": "2027-05-05",
+    "end": "2027-05-09",
+    "guest": "andrea papritz - airbnb (nepropsalo se mi to sem)",
+    "platform": "E-chalupy"
+  },
+  {
+    "uid": "bdff2eb7-88df-4995-b09a-006f108b9a9f",
+    "start": "2027-05-14",
+    "end": "2027-05-18",
+    "guest": "Reserved - Glen",
+    "platform": "Fewo-direkt"
+  }
+]
