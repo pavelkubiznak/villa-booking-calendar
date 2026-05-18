@@ -98,11 +98,25 @@
     "platform": "Airbnb"
   },
   {
+    "uid": "7f662ec65913-49e9ac6b2833d611b6e42a9c67c7efea@airbnb.com",
+    "start": "2026-05-18",
+    "end": "2026-05-19",
+    "guest": "Airbnb (Not available)",
+    "platform": "Airbnb"
+  },
+  {
     "uid": "59bdcaeb186dab9d00115b0bf2e49ac5@booking.com",
     "start": "2026-05-22",
     "end": "2026-05-25",
     "guest": "(Booking guest)",
     "platform": "Booking.com"
+  },
+  {
+    "uid": "1418fb94e984-743a6886189e0e9f2e25bfd2ce54b86c@airbnb.com",
+    "start": "2026-05-25",
+    "end": "2026-05-29",
+    "guest": "Reserved",
+    "platform": "Airbnb"
   },
   {
     "uid": "492a6252276e386e5f85e748cc13dde9@booking.com",
