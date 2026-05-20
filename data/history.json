@@ -273,6 +273,13 @@
     "platform": "Booking.com"
   },
   {
+    "uid": "1418fb94e984-094182d94d44ff57583d168bf02aa791@airbnb.com",
+    "start": "2026-10-28",
+    "end": "2026-10-30",
+    "guest": "Reserved",
+    "platform": "Airbnb"
+  },
+  {
     "uid": "00d7773e-c446-4ada-b55f-9e46ce594415",
     "start": "2026-10-30",
     "end": "2026-11-02",
