@@ -112,6 +112,13 @@
     "platform": "Airbnb"
   },
   {
+    "uid": "7f662ec65913-9398ed39585376c99e3fb15bd7485384@airbnb.com",
+    "start": "2026-05-20",
+    "end": "2026-05-21",
+    "guest": "Airbnb (Not available)",
+    "platform": "Airbnb"
+  },
+  {
     "uid": "59bdcaeb186dab9d00115b0bf2e49ac5@booking.com",
     "start": "2026-05-22",
     "end": "2026-05-25",
@@ -341,6 +348,13 @@
     "end": "2027-02-27",
     "guest": "mark kroeze 3015 EURo bez dalších poplatků - jenom městská taxa",
     "platform": "E-chalupy"
+  },
+  {
+    "uid": "1418fb94e984-dc2861185c4a57e1d77343d389391400@airbnb.com",
+    "start": "2027-04-29",
+    "end": "2027-05-02",
+    "guest": "Reserved",
+    "platform": "Airbnb"
   },
   {
     "uid": "18852-13892906@e-chalupy.cz",
