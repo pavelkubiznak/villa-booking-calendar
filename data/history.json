@@ -376,5 +376,12 @@
     "end": "2027-05-18",
     "guest": "Reserved - Glen",
     "platform": "Fewo-direkt"
+  },
+  {
+    "uid": "18c84aa88629d21718c72e754454569e@booking.com",
+    "start": "2027-08-30",
+    "end": "2027-09-05",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
   }
 ]
