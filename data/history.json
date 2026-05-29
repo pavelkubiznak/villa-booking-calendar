@@ -383,5 +383,12 @@
     "end": "2027-09-05",
     "guest": "(Booking guest)",
     "platform": "Booking.com"
+  },
+  {
+    "uid": "18852-14411474@e-chalupy.cz",
+    "start": "2028-05-25",
+    "end": "2028-05-28",
+    "guest": "Moritz BR",
+    "platform": "E-chalupy"
   }
 ]
