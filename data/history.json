@@ -154,6 +154,13 @@
     "platform": "Airbnb"
   },
   {
+    "uid": "7f662ec65913-be994450209e5d1b922feff6ec3d85bc@airbnb.com",
+    "start": "2026-06-01",
+    "end": "2026-06-02",
+    "guest": "Airbnb (Not available)",
+    "platform": "Airbnb"
+  },
+  {
     "uid": "2a1d927b496a60f4af6c03be1fd8b80a@booking.com",
     "start": "2026-06-04",
     "end": "2026-06-07",
