@@ -406,6 +406,13 @@
     "platform": "Fewo-direkt"
   },
   {
+    "uid": "f7af7461aac5070d1f21263c2715f6a5@booking.com",
+    "start": "2027-05-22",
+    "end": "2027-05-29",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
     "uid": "ad004919183024d7a5e69b2c183c53b9@booking.com",
     "start": "2027-07-12",
     "end": "2027-07-21",
