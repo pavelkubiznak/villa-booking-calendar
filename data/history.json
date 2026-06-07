@@ -182,6 +182,13 @@
     "platform": "Booking.com"
   },
   {
+    "uid": "7f662ec65913-5596a3f0868988597f892c4b1019d3ea@airbnb.com",
+    "start": "2026-06-07",
+    "end": "2026-06-08",
+    "guest": "Airbnb (Not available)",
+    "platform": "Airbnb"
+  },
+  {
     "uid": "18852-10591964@e-chalupy.cz",
     "start": "2026-06-11",
     "end": "2026-06-14",
