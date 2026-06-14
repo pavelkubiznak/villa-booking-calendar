@@ -217,6 +217,13 @@
     "platform": "E-chalupy"
   },
   {
+    "uid": "7f662ec65913-ef73b805ce869451587a3ddd59b09db5@airbnb.com",
+    "start": "2026-06-14",
+    "end": "2026-06-15",
+    "guest": "Airbnb (Not available)",
+    "platform": "Airbnb"
+  },
+  {
     "uid": "442d8b3add5813150670cc47ecd4e6f0@booking.com",
     "start": "2026-06-15",
     "end": "2026-06-22",
