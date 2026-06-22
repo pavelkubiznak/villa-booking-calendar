@@ -231,6 +231,13 @@
     "platform": "Booking.com"
   },
   {
+    "uid": "7f662ec65913-b2e7ffb392c00de1d9f4b2048f2de806@airbnb.com",
+    "start": "2026-06-22",
+    "end": "2026-06-23",
+    "guest": "Airbnb (Not available)",
+    "platform": "Airbnb"
+  },
+  {
     "uid": "c01cd2de1d0e43d1c3cc34ed42400ed8@booking.com",
     "start": "2026-06-26",
     "end": "2026-07-02",
