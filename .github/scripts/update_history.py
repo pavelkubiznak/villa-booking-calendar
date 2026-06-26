@@ -37,6 +37,10 @@ def parse_ics(text):
         guest = summary or '(reserved)'
         if guest.upper() == 'RESERVED':         guest = 'Reserved'
         if guest.startswith('CLOSED'):           guest = '(Booking guest)'
+        # Skip Airbnb auto-blocking noise:
+        # Airbnb creates a 1-day "Airbnb (Not available)" event for every free day.
+        # These are NOT real bookings — filter them out of history.json.
+        if guest == 'Airbnb (Not available)':   continue
         events.append({'uid': uid,
                         'start':    start.strftime('%Y-%m-%d'),
                         'end':      end.strftime('%Y-%m-%d'),
@@ -47,10 +51,13 @@ def parse_ics(text):
 def main():
     try:
         with open(HISTORY_FILE) as f:
-            history = {e['uid']: e for e in json.load(f)}
+            raw = json.load(f)
+            # Also clean up any old noise entries that were previously stored
+            history = {e['uid']: e for e in raw
+                       if e.get('guest') != 'Airbnb (Not available)'}
     except (FileNotFoundError, json.JSONDecodeError):
         history = {}
-    print(f'Loaded {len(history)} existing entries')
+    print(f'Loaded {len(history)} existing entries (Airbnb noise filtered)')
 
     print(f'Fetching {ICAL_URL}')
     try:
@@ -66,7 +73,7 @@ def main():
         print('ERROR: not a valid iCal', file=sys.stderr); sys.exit(1)
 
     events = parse_ics(text)
-    print(f'Parsed {len(events)} events')
+    print(f'Parsed {len(events)} real booking events (Airbnb noise excluded)')
     new = sum(1 for e in events if e['uid'] not in history)
     for e in events:
         history[e['uid']] = e
