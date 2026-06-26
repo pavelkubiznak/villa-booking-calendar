@@ -7,48 +7,6 @@
     "platform": "E-chalupy"
   },
   {
-    "uid": "7f662ec65913-58057531a66b787c335aa50f21e1cfb9@airbnb.com",
-    "start": "2026-05-02",
-    "end": "2026-05-03",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-eafdb6d4437916674fa4f22a5873a7c6@airbnb.com",
-    "start": "2026-05-03",
-    "end": "2026-05-04",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-3f9009e8161b668f2965d2dd0b7383ad@airbnb.com",
-    "start": "2026-05-04",
-    "end": "2026-05-05",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-042cfd35e8d9090ea6174133987f6aa1@airbnb.com",
-    "start": "2026-05-05",
-    "end": "2026-05-06",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-fdb725229d7e407304c791030ea45095@airbnb.com",
-    "start": "2026-05-06",
-    "end": "2026-05-07",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-6e64e76521e38239ff08105bf265bc4d@airbnb.com",
-    "start": "2026-05-07",
-    "end": "2026-05-08",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
     "uid": "6f84cc3c57d0d332daf948e0973eff6a@booking.com",
     "start": "2026-05-08",
     "end": "2026-05-10",
@@ -56,74 +14,11 @@
     "platform": "Booking.com"
   },
   {
-    "uid": "7f662ec65913-5274a63313a6835bd26e257704974f95@airbnb.com",
-    "start": "2026-05-10",
-    "end": "2026-05-11",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-776dae374cac039d62ec9a353119108a@airbnb.com",
-    "start": "2026-05-11",
-    "end": "2026-05-12",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-d279fe5d573b8caebfbad15e99a87fe6@airbnb.com",
-    "start": "2026-05-12",
-    "end": "2026-05-13",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-4be6d9d4301d86817b44ce14528627ae@airbnb.com",
-    "start": "2026-05-13",
-    "end": "2026-05-14",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
     "uid": "18852-10544655@e-chalupy.cz",
     "start": "2026-05-14",
     "end": "2026-05-17",
     "guest": "martiz od felixe",
     "platform": "E-chalupy"
-  },
-  {
-    "uid": "7f662ec65913-3b711f61b09106a35d4d0d0b7a5d2ffb@airbnb.com",
-    "start": "2026-05-17",
-    "end": "2026-05-18",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-49e9ac6b2833d611b6e42a9c67c7efea@airbnb.com",
-    "start": "2026-05-18",
-    "end": "2026-05-19",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-e74d9d3316f214fae8c19c250808f2ca@airbnb.com",
-    "start": "2026-05-19",
-    "end": "2026-05-20",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-9398ed39585376c99e3fb15bd7485384@airbnb.com",
-    "start": "2026-05-20",
-    "end": "2026-05-21",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-ef0c75bd02f6d767d273d927db6771a5@airbnb.com",
-    "start": "2026-05-21",
-    "end": "2026-05-22",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
   },
   {
     "uid": "59bdcaeb186dab9d00115b0bf2e49ac5@booking.com",
@@ -147,67 +42,11 @@
     "platform": "Booking.com"
   },
   {
-    "uid": "7f662ec65913-96b951df9bacc4611285f7cebe34c5cd@airbnb.com",
-    "start": "2026-05-31",
-    "end": "2026-06-01",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-be994450209e5d1b922feff6ec3d85bc@airbnb.com",
-    "start": "2026-06-01",
-    "end": "2026-06-02",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-bbf048b8fc2bd7f916c53b719821629a@airbnb.com",
-    "start": "2026-06-02",
-    "end": "2026-06-03",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-b5405b9fe42ffcd67ad21f71bf81e002@airbnb.com",
-    "start": "2026-06-03",
-    "end": "2026-06-04",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
     "uid": "2a1d927b496a60f4af6c03be1fd8b80a@booking.com",
     "start": "2026-06-04",
     "end": "2026-06-07",
     "guest": "(Booking guest)",
     "platform": "Booking.com"
-  },
-  {
-    "uid": "7f662ec65913-5596a3f0868988597f892c4b1019d3ea@airbnb.com",
-    "start": "2026-06-07",
-    "end": "2026-06-08",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-edf671eecdc5c69d3fe803f39a81c8a3@airbnb.com",
-    "start": "2026-06-08",
-    "end": "2026-06-09",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-942468ef45d6f3cd2262bc9fed3fd284@airbnb.com",
-    "start": "2026-06-09",
-    "end": "2026-06-10",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-f111472708409b2ae9d74ab9d6c63a17@airbnb.com",
-    "start": "2026-06-10",
-    "end": "2026-06-11",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
   },
   {
     "uid": "18852-10591964@e-chalupy.cz",
@@ -217,46 +56,11 @@
     "platform": "E-chalupy"
   },
   {
-    "uid": "7f662ec65913-ef73b805ce869451587a3ddd59b09db5@airbnb.com",
-    "start": "2026-06-14",
-    "end": "2026-06-15",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
     "uid": "442d8b3add5813150670cc47ecd4e6f0@booking.com",
     "start": "2026-06-15",
     "end": "2026-06-22",
     "guest": "(Booking guest)",
     "platform": "Booking.com"
-  },
-  {
-    "uid": "7f662ec65913-b2e7ffb392c00de1d9f4b2048f2de806@airbnb.com",
-    "start": "2026-06-22",
-    "end": "2026-06-23",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-bef3dd0066332d1434f2e5e8c2628790@airbnb.com",
-    "start": "2026-06-23",
-    "end": "2026-06-24",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-03fbce00745f7e7e857117fb16da743d@airbnb.com",
-    "start": "2026-06-24",
-    "end": "2026-06-25",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
-  },
-  {
-    "uid": "7f662ec65913-55ca54c3d697df230528fca42f1f3b29@airbnb.com",
-    "start": "2026-06-25",
-    "end": "2026-06-26",
-    "guest": "Airbnb (Not available)",
-    "platform": "Airbnb"
   },
   {
     "uid": "c01cd2de1d0e43d1c3cc34ed42400ed8@booking.com",
@@ -416,7 +220,7 @@
     "uid": "18852-11548029@e-chalupy.cz",
     "start": "2026-12-26",
     "end": "2027-01-03",
-    "guest": "Wäre das Haus noch frei ?odeslal: Julia Quast\\, telefon: 01627543449požadovaný termín: 28.12.2026-03.01.2027počet osob: 14 dospělých + 5 dětíe",
+    "guest": "Wäre das Haus noch frei ?",
     "platform": "E-chalupy"
   },
   {
@@ -479,7 +283,7 @@
     "uid": "18852-14776571@e-chalupy.cz",
     "start": "2027-06-10",
     "end": "2027-06-13",
-    "guest": "černá - už u nás byla 2x",
+    "guest": "Černá - už u nás byla 2x",
     "platform": "E-chalupy"
   },
   {
