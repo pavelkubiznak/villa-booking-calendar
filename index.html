@@ -6,7 +6,7 @@
 <title>Villa Rudolf — Kalendář</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; background: #F0F2F5; color: #2C3E50; padding: 24px; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #F0F2F5; color: #2C3E50; padding: 24px; }
 
   h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
   .subtitle { font-size: 12px; color: #95A5A6; margin-bottom: 16px; }
@@ -19,30 +19,40 @@
   #status.error   { background:#FDEDEC; color:#E74C3C; }
 
   .btn {
-    font-size: 12px; padding: 6px 14px; border-radius: 6px; border: 1.5px solid #2980B9;
-    background: #fff; color: #2980B9; cursor: pointer; font-weight: 600; white-space: nowrap;
+    font-size: 12px; padding: 6px 14px; border-radius: 6px; border: 1.5px solid #B0BEC5;
+    background: #fff; color: #546E7A; cursor: pointer; font-weight: 600; white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
   }
-  .btn:hover { background: #EBF5FB; }
+  .btn:hover { background: #ECEFF1; border-color: #90A4AE; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn.secondary { border-color: #95A5A6; color: #607D8B; }
+  /* Primary — main action button */
+  .btn.primary { background: #1565C0; color: #fff; border-color: #1565C0; }
+  .btn.primary:hover { background: #1976D2; border-color: #1976D2; }
+  .btn.primary:disabled { opacity: 0.5; }
+  /* Secondary neutral — kept for compatibility */
+  .btn.secondary { border-color: #B0BEC5; color: #607D8B; }
   .btn.secondary:hover { background: #ECEFF1; }
+  /* Reset / danger — demoted, muted until hover */
+  .btn.reset { font-size: 11px; padding: 4px 10px; border-color: #CFD8DC; color: #90A4AE; margin-left: auto; }
+  .btn.reset:hover { background: #FDEDEC; border-color: #E57373; color: #C62828; }
 
-  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 6px; align-items: center; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 20px; margin-bottom: 6px; align-items: center; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
-  .legend-swatch { width: 28px; height: 10px; border-radius: 3px; }
+  .legend-swatch { width: 28px; height: 14px; border-radius: 4px; }
   .legend-note { font-size: 11px; color: #95A5A6; margin-bottom: 20px; }
 
   .months { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
   .month-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.09); overflow: hidden; }
-  .month-header { background: #2C3E50; color: #fff; padding: 9px 14px; font-size: 13px; font-weight: 700; }
-  .month-header.current { background: #1A5276; }
+  .month-header { background: #2C3E50; color: #fff; padding: 9px 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+  .month-header.current { background: linear-gradient(135deg, #1565C0 0%, #1976D2 100%); }
+  .current-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; background: rgba(255,255,255,0.22); padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
   .day-names { display: grid; grid-template-columns: repeat(7, 1fr); }
   .day-name { text-align: center; font-size: 9px; font-weight: 700; color: #B0BEC5; padding: 5px 0 4px; text-transform: uppercase; }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
 
   /* Day cell — flex column so halves fill remaining height */
   .day-cell {
-    min-height: 44px;
+    min-height: 52px;
     border-right: 1px solid #F0F2F5;
     border-bottom: 1px solid #F0F2F5;
     position: relative;
@@ -51,9 +61,9 @@
     padding-top: 3px;
   }
   .day-cell:nth-child(7n) { border-right: none; }
-  .day-num { font-size: 10px; font-weight: 600; color: #78909C; text-align: center; line-height: 1; padding-bottom: 2px; flex-shrink: 0; }
+  .day-num { font-size: 11px; font-weight: 600; color: #78909C; text-align: center; line-height: 1; padding-bottom: 2px; flex-shrink: 0; }
   .day-cell.empty .day-num { color: transparent; }
-  .day-cell.today { background: #E3F2FD; }
+  .day-cell.today { background: #E3F2FD; outline: 2px solid #1565C0; outline-offset: -2px; }
   .day-cell.today .day-num { color: #1565C0; font-weight: 800; }
 
   /* Half-day split — top = checkout (↑ morning), bottom = checkin (↓ afternoon) */
@@ -64,7 +74,7 @@
     align-items: center;
     justify-content: flex-end;
     padding: 0 3px;
-    font-size: 7px;
+    font-size: 8px;
     font-weight: 700;
     line-height: 1;
     border-bottom: 0.5px solid rgba(255,255,255,0.28);
@@ -76,7 +86,7 @@
     align-items: center;
     justify-content: flex-end;
     padding: 0 3px;
-    font-size: 7px;
+    font-size: 8px;
     font-weight: 700;
     line-height: 1;
     color: rgba(255,255,255,0.92);
@@ -94,7 +104,7 @@
   .tip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#1C2833; }
 
   /* Summary / table */
-  .summary { margin-top: 26px; background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,0.09); overflow:hidden; }
+  .summary { margin-top: 32px; background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,0.09); overflow:hidden; }
   .summary-header { background:#2C3E50; color:#fff; padding:9px 16px; font-size:13px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
   .summary-header .toggle-link { font-size:11px; font-weight:400; opacity:0.8; cursor:pointer; text-decoration:underline; }
   table { width:100%; border-collapse:collapse; }
@@ -145,6 +155,17 @@
     h1 { font-size: 18px; }
     .status-bar { gap: 6px; }
   }
+  @media (max-width: 480px) {
+    body { padding: 8px; }
+    h1 { font-size: 16px; }
+    .subtitle { font-size: 11px; }
+    .btn { font-size: 11px; padding: 5px 10px; }
+    .btn.reset { font-size: 10px; padding: 3px 8px; }
+    .months { overflow-x: auto; }
+    .month-card { min-width: 280px; }
+    .legend { gap: 10px; }
+    .legend-item { font-size: 11px; }
+  }
 </style>
 </head>
 <body>
@@ -154,10 +175,10 @@
 
 <div class="status-bar">
   <div id="status" class="loading">⏳ Načítám rezervace…</div>
-  <button id="refresh-btn" class="btn" onclick="load(true)">🔄 Obnovit</button>
-  <button class="btn secondary" onclick="scrollToToday()">📅 Přejít na dnes</button>
-  <button class="btn secondary" id="add-booking-btn" onclick="toggleAddForm()" style="border-color:#27AE60;color:#1E8449;">📝 Přidat pobyt</button>
-  <button class="btn secondary" onclick="clearAllAndRefresh()" style="border-color:#E74C3C;color:#E74C3C;" title="Smaže cache a načte znovu">🗑 Reset cache</button>
+  <button id="refresh-btn" class="btn primary" onclick="load(true)">🔄 Obnovit</button>
+  <button class="btn" onclick="scrollToToday()">📅 Přejít na dnes</button>
+  <button class="btn" id="add-booking-btn" onclick="toggleAddForm()" style="border-color:#27AE60;color:#1E8449;">📝 Přidat pobyt</button>
+  <button class="btn reset" onclick="clearAllAndRefresh()" title="Smaže cache i historii — ručně zadané pobyty budou ztraceny">🗑 Reset cache</button>
 </div>
 
 <div class="legend">
@@ -171,7 +192,7 @@
 <!-- ── Add past booking panel ─────────────────────────────────────────── -->
 <div id="add-form" class="add-form-panel" style="display:none">
   <h3>📝 Přidat pobyt ručně</h3>
-  <p class="hint">Pobyty nedostupné v živém feedu. Ukládají se trvale v prohlíſeči a zobrazí se v kalendáři i statistikách.</p>
+  <p class="hint">Pobyty nedostupné v živém feedu. Ukládají se trvale v prohlížeči a zobrazí se v kalendáři i statistikách.</p>
   <div class="form-grid">
     <div class="form-field">
       <label>Check-in *</label>
@@ -456,9 +477,11 @@ function renderCalendar(bookings) {
     const card = document.createElement('div');
     card.className = 'month-card';
     card.id = cardId;
-    const headerCls = isCurrent ? 'current' : '';
+    const headerContent = isCurrent
+      ? `${MONTHS[m]} ${y} <span class="current-badge">aktuální</span>`
+      : `${MONTHS[m]} ${y}`;
     card.innerHTML = `
-      <div class="month-header ${headerCls}">${MONTHS[m]} ${y}</div>
+      <div class="month-header ${isCurrent ? 'current' : ''}">${headerContent}</div>
       <div class="day-names">${DAYS.map(n=>`<div class="day-name">${n}</div>`).join('')}</div>
       <div class="cal-grid" id="g${y}${m}"></div>`;
     mc.appendChild(card);
@@ -681,7 +704,7 @@ function deleteEntry(uid) {
 }
 
 function clearManualBookings() {
-  if (!confirm('Smazat všechny ručně zadané pobyty? (Automaticky načtené z feedu zůstanou.)')) return;
+  if (!confirm('Smezat všechny ručně zadané pobyty? (Automaticky načtené z feedu zůstanou.)')) return;
   const history = loadHistory();
   Object.keys(history).forEach(uid => { if (uid.startsWith('manual-')) delete history[uid]; });
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch(_) {}
@@ -690,7 +713,7 @@ function clearManualBookings() {
 }
 
 function clearAllAndRefresh() {
-  if (!confirm('Smaže veškerá uložená data (včetnę celé historie) a načte znovu ze živého feedu.\n\nRuční záznamy budou ztraceny — Nejprve je exportujte.\n\nPokračovat?')) return;
+  if (!confirm('Smaže veškerá uložená data (včetně celé historie) a načte znovu ze živého feedu.\n\nRuční záznamy budou ztraceny — nejprve je exportujte.\n\nPokračovat?')) return;
   try { localStorage.removeItem('villa_cal_v2'); } catch(_) {}
   try { localStorage.removeItem('villa_cal_history_v1'); } catch(_) {}
   location.reload();
@@ -709,7 +732,7 @@ function exportHistory() {
   const blob = new Blob([JSON.stringify(rows, null, 2)], { type:'application/json' });
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);
-  a.download = `villa-rezervace-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = fvilla-rezervace-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 }
 
