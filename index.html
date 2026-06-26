@@ -704,7 +704,7 @@ function deleteEntry(uid) {
 }
 
 function clearManualBookings() {
-  if (!confirm('Smezat všechny ručně zadané pobyty? (Automaticky načtené z feedu zůstanou.)')) return;
+  if (!confirm('Smazat všechny ručně zadané pobyty? (Automaticky načtené z feedu zůstanou.)')) return;
   const history = loadHistory();
   Object.keys(history).forEach(uid => { if (uid.startsWith('manual-')) delete history[uid]; });
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch(_) {}
@@ -732,7 +732,7 @@ function exportHistory() {
   const blob = new Blob([JSON.stringify(rows, null, 2)], { type:'application/json' });
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);
-  a.download = fvilla-rezervace-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `villa-rezervace-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
 }
 
