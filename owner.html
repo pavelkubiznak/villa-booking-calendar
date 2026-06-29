@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Villa Rudolf — Majitel</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #F0F2F5; color: #2C3E50; padding: 24px; }
+
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; color: #95A5A6; margin-bottom: 16px; }
+
+  .status-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  #status { font-size: 12px; padding: 7px 12px; border-radius: 6px; display:inline-block; }
+  #status.loading { background:#EBF5FB; color:#2980B9; }
+  #status.ok      { background:#EAFAF1; color:#27AE60; }
+  #status.cached  { background:#FEF9E7; color:#F39C12; }
+  #status.error   { background:#FDEDEC; color:#E74C3C; }
+
+  .btn {
+    font-size: 12px; padding: 6px 14px; border-radius: 6px; border: 1.5px solid #B0BEC5;
+    background: #fff; color: #546E7A; cursor: pointer; font-weight: 600; white-space: nowrap;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .btn:hover { background: #ECEFF1; border-color: #90A4AE; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.primary { background: #1565C0; color: #fff; border-color: #1565C0; }
+  .btn.primary:hover { background: #1976D2; border-color: #1976D2; }
+  .btn.primary:disabled { opacity: 0.5; }
+  .btn.secondary { border-color: #B0BEC5; color: #607D8B; }
+  .btn.secondary:hover { background: #ECEFF1; }
+  .btn.gold { background: #B8860B; color: #fff; border-color: #B8860B; }
+  .btn.gold:hover { background: #C9971A; border-color: #C9971A; }
+
+  /* ── Lock screen ─────────────────────────────────────────────────────── */
+  #lock { max-width: 420px; margin: 12vh auto 0; background:#fff; border-radius:14px; box-shadow:0 4px 24px rgba(0,0,0,0.12); padding:32px 28px; text-align:center; }
+  #lock .lock-emoji { font-size: 42px; }
+  #lock h2 { font-size: 18px; margin: 12px 0 6px; }
+  #lock p { font-size: 13px; color:#78909C; line-height:1.6; }
+  #lock input { width:100%; margin-top:16px; padding:10px 12px; border:1.5px solid #D5D8DC; border-radius:8px; font-size:14px; text-align:center; outline:none; }
+  #lock input:focus { border-color:#1565C0; }
+  #lock .btn { margin-top:14px; width:100%; padding:10px; }
+  #lock .err { color:#E74C3C; font-size:12px; margin-top:10px; min-height:16px; }
+
+  #app { display: none; }
+
+  /* ── KPI cards ───────────────────────────────────────────────────────── */
+  .period-switch { display:inline-flex; border:1.5px solid #CFD8DC; border-radius:8px; overflow:hidden; margin: 4px 0 16px; }
+  .period-switch button { font-size:12px; font-weight:700; padding:7px 16px; border:none; background:#fff; color:#78909C; cursor:pointer; }
+  .period-switch button.active { background:#1565C0; color:#fff; }
+
+  .kpi-row { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:14px; margin-bottom:8px; }
+  .kpi-card { background:#fff; border-radius:12px; box-shadow:0 1px 6px rgba(0,0,0,0.09); padding:16px 18px; border-left:4px solid #1565C0; }
+  .kpi-card.revenue  { border-left-color:#B8860B; }
+  .kpi-card.occ      { border-left-color:#27AE60; }
+  .kpi-card.nightly  { border-left-color:#2980B9; }
+  .kpi-card.stay     { border-left-color:#8E44AD; }
+  .kpi-label { font-size:10px; font-weight:700; color:#90A4AE; text-transform:uppercase; letter-spacing:0.5px; }
+  .kpi-value { font-size:26px; font-weight:800; color:#2C3E50; margin-top:6px; line-height:1.1; }
+  .kpi-sub   { font-size:11px; color:#95A5A6; margin-top:4px; }
+
+  .warn-banner { background:#FEF9E7; border:1px solid #F7DC6F; color:#9A7D0A; font-size:12px; padding:8px 14px; border-radius:8px; margin-bottom:14px; display:none; }
+  .warn-banner.show { display:block; }
+
+  /* ── Platform breakdown ──────────────────────────────────────────────── */
+  .breakdown { background:#fff; border-radius:12px; box-shadow:0 1px 6px rgba(0,0,0,0.09); padding:16px 18px; margin-bottom:18px; }
+  .breakdown h3 { font-size:12px; font-weight:700; color:#78909C; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:12px; }
+  .bd-row { display:flex; align-items:center; gap:10px; margin-bottom:9px; font-size:12px; }
+  .bd-row:last-child { margin-bottom:0; }
+  .bd-name { width:96px; font-weight:700; flex-shrink:0; }
+  .bd-bar-wrap { flex:1; background:#F0F2F5; border-radius:6px; height:16px; overflow:hidden; }
+  .bd-bar { height:100%; border-radius:6px; }
+  .bd-val { width:130px; text-align:right; font-weight:700; flex-shrink:0; font-variant-numeric:tabular-nums; }
+  .bd-pct { width:48px; text-align:right; color:#95A5A6; flex-shrink:0; font-variant-numeric:tabular-nums; }
+
+  /* ── Legend ──────────────────────────────────────────────────────────── */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 4px; margin-bottom: 6px; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+  .legend-swatch { width: 28px; height: 14px; border-radius: 4px; }
+  .legend-note { font-size: 11px; color: #95A5A6; margin-bottom: 18px; }
+
+  /* ── Calendar (same as cleaning view) ────────────────────────────────── */
+  .months { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+  .month-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.09); overflow: hidden; }
+  .month-header { background: #2C3E50; color: #fff; padding: 9px 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+  .month-header.current { background: linear-gradient(135deg, #1565C0 0%, #1976D2 100%); }
+  .month-header .mh-rev { font-size:11px; font-weight:700; background:rgba(255,255,255,0.18); padding:2px 8px; border-radius:10px; }
+  .current-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; background: rgba(255,255,255,0.22); padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+  .day-names { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .day-name { text-align: center; font-size: 9px; font-weight: 700; color: #B0BEC5; padding: 5px 0 4px; text-transform: uppercase; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+
+  .day-cell { min-height: 52px; border-right: 1px solid #F0F2F5; border-bottom: 1px solid #F0F2F5; position: relative; display: flex; flex-direction: column; padding-top: 3px; }
+  .day-cell:nth-child(7n) { border-right: none; }
+  .day-num { font-size: 11px; font-weight: 600; color: #78909C; text-align: center; line-height: 1; padding-bottom: 2px; flex-shrink: 0; }
+  .day-cell.empty .day-num { color: transparent; }
+  .day-cell.today { background: #E3F2FD; outline: 2px solid #1565C0; outline-offset: -2px; }
+  .day-cell.today .day-num { color: #1565C0; font-weight: 800; }
+
+  .cell-halves { display: flex; flex-direction: column; flex: 1; min-height: 22px; }
+  .half-am, .half-pm { flex: 1; display: flex; align-items: center; justify-content: flex-end; padding: 0 3px; font-size: 8px; font-weight: 700; line-height: 1; color: rgba(255,255,255,0.92); }
+  .half-am { border-bottom: 0.5px solid rgba(255,255,255,0.28); }
+  .half-am.dark-txt, .half-pm.dark-txt { color: rgba(100, 65, 0, 0.9); }
+
+  .day-cell:hover .tip { display: block; }
+  .tip { display: none; position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: #1C2833; color: #fff; font-size: 11px; padding: 6px 9px; border-radius: 7px; white-space: nowrap; z-index: 999; pointer-events: none; box-shadow: 0 3px 12px rgba(0,0,0,0.4); line-height: 1.7; }
+  .tip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%); border:5px solid transparent; border-top-color:#1C2833; }
+
+  /* ── Tables ──────────────────────────────────────────────────────────── */
+  .panel { margin-top: 26px; background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,0.09); overflow:hidden; }
+  .panel-header { background:#2C3E50; color:#fff; padding:9px 16px; font-size:13px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+  .panel-header .toggle-link { font-size:11px; font-weight:400; opacity:0.8; cursor:pointer; text-decoration:underline; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:#ECEFF1; font-size:10px; font-weight:700; color:#78909C; text-transform:uppercase; padding:7px 12px; text-align:left; }
+  td { padding:8px 12px; font-size:12px; border-bottom:1px solid #F5F6FA; vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  .badge { display:inline-block; padding:2px 7px; border-radius:9px; font-size:10px; font-weight:700; }
+  .past-row td { color: #95A5A6; }
+  .past-row .badge { opacity: 0.6; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+
+  .price-input { width:90px; padding:5px 7px; border:1.5px solid #D5D8DC; border-radius:6px; font-size:12px; text-align:right; outline:none; font-variant-numeric:tabular-nums; }
+  .price-input:focus { border-color:#B8860B; background:#FFFDF5; }
+  .price-input.has-val { border-color:#B8860B; font-weight:700; color:#7A5C00; }
+  .cur-select { padding:5px 4px; border:1.5px solid #D5D8DC; border-radius:6px; font-size:11px; outline:none; }
+
+  .archive-toggle { background: #F5F6FA; color: #607D8B; border: none; width: 100%; text-align: left; padding: 8px 16px; font-size: 11px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; border-top: 1px solid #E0E3E8; }
+  .archive-toggle:hover { background: #E9EBF0; }
+  #archive-body { display: none; }
+
+  /* ── Settings ────────────────────────────────────────────────────────── */
+  .settings { background:#fff; border-radius:10px; box-shadow:0 1px 6px rgba(0,0,0,0.09); padding:14px 20px; margin-top:18px; }
+  .settings summary { font-size:12px; font-weight:600; color:#607D8B; cursor:pointer; user-select:none; }
+  .settings .set-body { margin-top:14px; display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end; }
+  .set-field label { font-size:11px; font-weight:700; color:#78909C; display:block; margin-bottom:4px; text-transform:uppercase; }
+  .set-field input { padding:7px 9px; border:1.5px solid #D5D8DC; border-radius:6px; font-size:13px; width:120px; outline:none; }
+  .set-field input:focus { border-color:#1565C0; }
+  .set-note { font-size:11px; color:#95A5A6; line-height:1.6; margin-top:12px; }
+
+  @media (max-width: 600px) {
+    body { padding: 12px; }
+    .months { grid-template-columns: 1fr; gap: 12px; }
+    h1 { font-size: 18px; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    body { padding: 8px; }
+    .kpi-row { grid-template-columns: 1fr; }
+    .bd-name { width:72px; }
+    .bd-val { width:96px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Lock screen ──────────────────────────────────────────────────────── -->
+<div id="lock">
+  <div class="lock-emoji">🔐</div>
+  <h2>Villa Rudolf — Majitelský přehled</h2>
+  <p>Tato stránka je chráněná. Zadej přístupový token nebo otevři odkaz s parametrem <code>?key=…</code>.</p>
+  <form id="lock-form" onsubmit="event.preventDefault(); tryUnlock();">
+    <label for="lock-input" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Přístupový token</label>
+    <input type="password" id="lock-input" placeholder="Přístupový token" autocomplete="off" autofocus>
+    <button type="submit" class="btn primary">Odemknout</button>
+  </form>
+  <div class="err" id="lock-err"></div>
+</div>
+
+<!-- ── Owner app ────────────────────────────────────────────────────────── -->
+<div id="app">
+  <h1>💰 Villa Rudolf — Majitelský přehled</h1>
+  <p class="subtitle">Tržby · obsazenost · výkon platforem · živá data ze všech kanálů</p>
+
+  <div class="status-bar">
+    <div id="status" class="loading">⏳ Načítám rezervace…</div>
+    <button id="refresh-btn" class="btn primary" onclick="load(true)">🔄 Obnovit</button>
+    <button class="btn" onclick="scrollToToday()">📅 Přejít na dnes</button>
+    <button class="btn gold" onclick="exportPrices()" title="Stáhne zašifrovaný prices.json k nahrání do repozitáře (synchronizace cen napříč zařízeními)">🔒 Export prices.json</button>
+    <button class="btn secondary" onclick="exportCSV()" title="Stáhne CSV přehled tržeb pro Excel">⬇️ Export CSV</button>
+  </div>
+
+  <!-- Period switch -->
+  <div class="period-switch" id="period-switch">
+    <button data-p="month">Tento měsíc</button>
+    <button data-p="ytd" class="active">Tento rok</button>
+    <button data-p="all">Celkem</button>
+  </div>
+
+  <div class="warn-banner" id="warn-banner"></div>
+
+  <!-- KPI cards -->
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <!-- Platform breakdown -->
+  <div class="breakdown" id="breakdown" style="display:none">
+    <h3>Tržby podle platformy</h3>
+    <div id="bd-rows"></div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-swatch" style="background:#E74C3C"></div> Airbnb</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#2980B9"></div> Booking.com</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
+  </div>
+  <p class="legend-note">Tržby se rozpočítávají po nocích do měsíců · číslo v záhlaví měsíce = tržba daného měsíce</p>
+
+  <!-- Calendar -->
+  <div class="months" id="months"></div>
+
+  <!-- Bookings table with editable prices -->
+  <div class="panel" id="summary">
+    <div class="panel-header">
+      📋 Rezervace &amp; ceny
+      <span class="toggle-link" onclick="toggleSection('tbl-wrap')">skrýt/zobrazit</span>
+    </div>
+    <div id="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Check-in</th><th>Check-out</th><th>Host</th><th class="num">Nocí</th><th>Platforma</th><th class="num">Cena pobytu</th><th class="num">Kč/noc</th></tr></thead>
+        <tbody id="tbl-upcoming"></tbody>
+      </table>
+      <button class="archive-toggle" onclick="toggleArchive()">
+        <span id="archive-icon">▸</span>&nbsp;<span id="archive-lbl">Zobrazit archiv proběhlých pobytů</span>
+      </button>
+      <div id="archive-body">
+        <table>
+          <thead><tr><th>#</th><th>Check-in</th><th>Check-out</th><th>Host</th><th class="num">Nocí</th><th>Platforma</th><th class="num">Cena pobytu</th><th class="num">Kč/noc</th></tr></thead>
+          <tbody id="tbl-past"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <details class="settings">
+    <summary>⚙️ Nastavení</summary>
+    <div class="set-body">
+      <div class="set-field">
+        <label>Kurz EUR → CZK</label>
+        <input type="number" id="eur-rate" step="0.1" min="1" onchange="setEurRate(this.value)">
+      </div>
+    </div>
+    <p class="set-note">
+      Ceny zadáváš přímo v tabulce (sloupec „Cena pobytu"). Ukládají se okamžitě v tomto prohlížeči.<br>
+      Pro synchronizaci napříč zařízeními klikni na <strong>🔒 Export prices.json</strong> a nahraj soubor do repozitáře (složka <code>data/</code>). Soubor je zašifrovaný tvým tokenem — bez tokenu ho nikdo nepřečte.
+    </p>
+  </details>
+
+  <p class="legend-note" style="margin-top:18px">🧹 <a href="index.html" style="color:#1565C0">Úklidový kalendář</a> (bez cen) · majitelský pohled je oddělený a chráněný tokenem.</p>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════════════════════════
+const CAL_URL = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics';
+const PROXIES = [
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://thingproxy.freeboard.io/fetch/${url}`,
+];
+const CACHE_KEY          = 'villa_cal_v2';
+const HISTORY_KEY        = 'villa_cal_history_v1';
+const PRICES_KEY         = 'villa_cal_prices_v1';
+const SETTINGS_KEY       = 'villa_cal_owner_settings_v1';
+const REMOTE_HISTORY_URL = 'https://raw.githubusercontent.com/pavelkubiznak/villa-booking-calendar/main/data/history.json';
+const REMOTE_PRICES_URL  = 'https://raw.githubusercontent.com/pavelkubiznak/villa-booking-calendar/main/data/prices.json';
+
+// SHA-256 of the access token. The token itself is NEVER stored in this file — only its hash,
+// so reading the public repo never reveals it. To change the token, replace this hash (see README).
+const TOKEN_HASH = '0b4226395f3ac784b9eb3ce51f1886d5786809d019e4762e0347cfbb18f0dfed';
+const CRYPTO_SALT = 'villa-rudolf-owner-v1';   // fixed salt; safe given a high-entropy token + AES-GCM
+const PBKDF2_ITERS = 310000;                   // OWASP-recommended floor (runs once, at unlock)
+
+const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12' };
+const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
+
+let currentPeriod = 'ytd';   // 'month' | 'ytd' | 'all'
+let cryptoKey = null;        // AES-GCM key derived from token (set after unlock)
+let sessionToken = null;
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CRYPTO  (Web Crypto — token gate + prices.json encryption)
+// ══════════════════════════════════════════════════════════════════════════════
+async function sha256hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function deriveKey(token) {
+  const baseKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(token), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: new TextEncoder().encode(CRYPTO_SALT), iterations: PBKDF2_ITERS, hash: 'SHA-256' },
+    baseKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+function b64(bytes) { return btoa(String.fromCharCode(...new Uint8Array(bytes))); }
+function unb64(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
+
+async function encryptJSON(obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = new TextEncoder().encode(JSON.stringify(obj));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, data);
+  return { __enc__: 1, v: 1, iv: b64(iv), ct: b64(ct) };
+}
+async function decryptJSON(payload) {
+  const iv = unb64(payload.iv);
+  const ct = unb64(payload.ct);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ct);
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  TOKEN GATE
+// ══════════════════════════════════════════════════════════════════════════════
+async function attemptUnlock(token) {
+  if (!token) return false;
+  const h = await sha256hex(token);
+  if (h !== TOKEN_HASH) return false;
+  sessionToken = token;
+  cryptoKey = await deriveKey(token);
+  document.getElementById('lock').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  load(false);
+  return true;
+}
+async function tryUnlock() {
+  const val = document.getElementById('lock-input').value.trim();
+  const ok = await attemptUnlock(val);
+  if (!ok) document.getElementById('lock-err').textContent = '❌ Neplatný token.';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const key = new URLSearchParams(location.search).get('key');
+  if (key) attemptUnlock(key).finally(() => {
+    // scrub the token from the address bar / history / bookmarks regardless of outcome
+    try { history.replaceState(null, '', location.pathname); } catch (_) {}
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  SHARED  (identical logic to the cleaning calendar)
+// ══════════════════════════════════════════════════════════════════════════════
+async function fetchWithFallback(url) {
+  const tryProxy = async (makeProxy) => {
+    const res = await fetch(makeProxy(url), { signal: AbortSignal.timeout(12000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    if (!text.includes('BEGIN:VCALENDAR')) throw new Error('Not a valid iCal response');
+    return text;
+  };
+  return Promise.any(PROXIES.map(p => tryProxy(p)));
+}
+function saveCache(text) { try { localStorage.setItem(CACHE_KEY, JSON.stringify({ text, ts: Date.now() })); } catch (_) {} }
+function loadCache()     { try { const r = localStorage.getItem(CACHE_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; } }
+
+function loadHistory() {
+  try { const raw = localStorage.getItem(HISTORY_KEY); return raw ? JSON.parse(raw) : {}; } catch (_) { return {}; }
+}
+function mergeHistory(freshEvents) {
+  const history = loadHistory();
+  freshEvents
+    .filter(ev => ev.guest !== 'Airbnb (Not available)')
+    .forEach(ev => {
+      history[ev.uid] = { uid: ev.uid, startTs: ev.start.getTime(), endTs: ev.end.getTime(), guest: ev.guest, platform: ev.platform };
+    });
+  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 18); cutoff.setHours(0,0,0,0);
+  Object.keys(history).forEach(uid => { if (history[uid].endTs < cutoff.getTime()) delete history[uid]; });
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {}
+  return historyToEvents(history);
+}
+function historyToEvents(history) {
+  return Object.values(history)
+    .filter(h => h.guest !== 'Airbnb (Not available)')
+    .map(h => ({ uid: h.uid, start: new Date(h.startTs), end: new Date(h.endTs), guest: h.guest, platform: h.platform }))
+    .sort((a, b) => a.start - b.start);
+}
+function getAllFromHistory() { return historyToEvents(loadHistory()); }
+
+function parseICS(text) {
+  const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 13); cutoff.setHours(0,0,0,0);
+  const events = [];
+  const unfolded = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '');
+  unfolded.split('BEGIN:VEVENT').slice(1).forEach(block => {
+    const get = (key) => { const m = block.match(new RegExp('^' + key + '[^:]*:(.+)$', 'm')); return m ? m[1].trim() : ''; };
+    const uid = get('UID'), summary = get('SUMMARY'), dtstart = get('DTSTART'), dtend = get('DTEND'), status = get('STATUS');
+    if (!dtstart || !dtend) return;
+    if (status && status !== 'CONFIRMED') return;
+    const start = icsToDate(dtstart), end = icsToDate(dtend);
+    if (!start || !end || end < cutoff) return;
+    let platform = 'E-chalupy';
+    if (uid.includes('@airbnb.com'))       platform = 'Airbnb';
+    else if (uid.includes('@booking.com')) platform = 'Booking.com';
+    else if (!uid.includes('@'))           platform = 'Fewo-direkt';
+    let guest = summary || '(reserved)';
+    if (guest.toUpperCase() === 'RESERVED') guest = 'Reserved';
+    if (guest.startsWith('CLOSED'))         guest = '(Booking guest)';
+    if (guest === 'Airbnb (Not available)') return;
+    events.push({ uid, start, end, guest, platform });
+  });
+  return events.sort((a, b) => a.start - b.start);
+}
+function icsToDate(s) { const d = s.replace(/[TZ].*/, ''); if (d.length < 8) return null; return new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8)); }
+
+function sd(a, b)     { return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+function fmtD(d)      { return d.toLocaleDateString('cs-CZ', { day:'2-digit', month:'short', year:'numeric' }); }
+function fmtMonth(d)  { return d.toLocaleDateString('cs-CZ', { month:'long', year:'numeric' }); }
+
+function getDayHalves(y, m, d, bookings) {
+  const dt = new Date(y, m, d);
+  let amB = null, pmB = null, midB = null;
+  bookings.forEach(b => {
+    if (sd(dt, b.end))              amB  = b;
+    if (sd(dt, b.start))            pmB  = b;
+    if (dt > b.start && dt < b.end) midB = b;
+  });
+  return { am: amB||midB, pm: pmB||midB, isCheckout: !!amB, isCheckin: !!pmB, outGuest: amB, inGuest: pmB, stayGuest: midB, any: !!(amB||pmB||midB) };
+}
+
+async function fetchAndMergeRemoteHistory() {
+  try {
+    const res = await fetch(REMOTE_HISTORY_URL + '?_=' + Date.now());
+    if (!res.ok) return 0;
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) return 0;
+    const events = data.map(e => ({
+        uid: e.uid, start: new Date(e.start + 'T00:00:00'), end: new Date(e.end + 'T00:00:00'),
+        guest: e.guest,
+        platform: COL[e.platform] ? e.platform : 'E-chalupy',   // whitelist: never trust a free-form platform from the remote file
+      }))
+      .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end))
+      .filter(e => e.guest !== 'Airbnb (Not available)');
+    if (events.length === 0) return 0;
+    mergeHistory(events);
+    return events.length;
+  } catch (_) { return 0; }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  PRICES  (keyed by booking UID; localStorage + encrypted prices.json)
+// ══════════════════════════════════════════════════════════════════════════════
+// shape:  { [uid]: { amount: Number, currency: 'CZK'|'EUR', mtime: Number } }
+function loadPrices() {
+  try { const raw = localStorage.getItem(PRICES_KEY); return raw ? JSON.parse(raw) : {}; } catch (_) { return {}; }
+}
+function savePrices(prices) {
+  // returns true on success; false (not silent) if persistence failed so callers can warn the owner
+  try { localStorage.setItem(PRICES_KEY, JSON.stringify(prices)); return true; } catch (_) { return false; }
+}
+
+function setPrice(uid, amount, currency) {
+  const prices = loadPrices();
+  const amt = parseFloat(String(amount).replace(',', '.'));
+  if (!amount || isNaN(amt) || amt <= 0) {
+    delete prices[uid];
+  } else {
+    prices[uid] = { amount: amt, currency: currency || 'CZK', mtime: Date.now() };   // mtime → cross-device merge-by-recency
+  }
+  const ok = savePrices(prices);
+  if (!ok) {
+    const el = document.getElementById('status');
+    if (el) { el.className = 'error'; el.textContent = '⚠️ Cenu se nepodařilo uložit (plné úložiště prohlížeče). Vyexportuj prices.json.'; }
+  }
+  renderKPIs();           // recompute totals live (calendar headers updated too)
+  renderCalendarHeadersRevenue();
+}
+
+// merge prices loaded from the (encrypted) remote file — local entries win
+async function fetchAndMergeRemotePrices() {
+  try {
+    const res = await fetch(REMOTE_PRICES_URL + '?_=' + Date.now());
+    if (!res.ok) return 0;
+    const txt = await res.text();
+    if (!txt.trim()) return 0;
+    const parsed = JSON.parse(txt);
+    // Require authenticated (AES-GCM) payloads only. A plaintext prices.json in the PUBLIC repo
+    // would be unauthenticated and could be substituted to inject prices — never trust it.
+    if (!parsed || !parsed.__enc__) { console.warn('prices.json is not encrypted — ignoring'); return 0; }
+    const remote = await decryptJSON(parsed);        // throws on tamper / wrong key → caught below
+    if (!remote || typeof remote !== 'object') return 0;
+    const local = loadPrices();
+    let added = 0;
+    Object.keys(remote).forEach(uid => {
+      const r = remote[uid];
+      if (!r || !(r.amount > 0)) return;
+      const l = local[uid];
+      // most-recent wins, so a correction made on another device propagates here
+      if (!l || (r.mtime || 0) > (l.mtime || 0)) { local[uid] = r; added++; }
+    });
+    savePrices(local);
+    return added;
+  } catch (e) { console.warn('prices.json decrypt/merge failed:', e); return 0; }
+}
+
+function getSettings() {
+  try { const r = localStorage.getItem(SETTINGS_KEY); return r ? JSON.parse(r) : {}; } catch (_) { return {}; }
+}
+function eurRate() { const s = getSettings(); return (s.eurRate >= 1 && s.eurRate <= 99) ? s.eurRate : 25; }
+function setEurRate(v) {
+  const s = getSettings(); const n = parseFloat(String(v).replace(',', '.'));
+  s.eurRate = (n >= 1 && n <= 99) ? n : 25;          // sane band; CZK/EUR has sat ~24-27 for years
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (_) {}
+  const fld = document.getElementById('eur-rate'); if (fld) fld.value = s.eurRate;   // reflect the value that actually took
+  renderKPIs(); renderCalendarHeadersRevenue();
+}
+
+// drop prices whose booking has aged out of (or never existed in) the history — called only after a
+// fully-loaded live render so we never delete a price for a booking that just hasn't loaded yet
+function pruneOrphanPrices(events) {
+  try {
+    const valid = new Set(events.map(e => e.uid));
+    const prices = loadPrices();
+    let changed = false;
+    Object.keys(prices).forEach(uid => { if (!valid.has(uid)) { delete prices[uid]; changed = true; } });
+    if (changed) savePrices(prices);
+  } catch (_) {}
+}
+
+// price of a booking converted to CZK (null if no price set)
+function priceCZK(uid) {
+  const p = loadPrices()[uid];
+  if (!p || !(p.amount > 0)) return null;
+  return p.currency === 'EUR' ? p.amount * eurRate() : p.amount;
+}
+function fmtCZK(n)  { return Math.round(n).toLocaleString('cs-CZ') + ' Kč'; }
+function fmtCZKk(n) { return n >= 100000 ? Math.round(n/1000).toLocaleString('cs-CZ') + ' tis. Kč' : fmtCZK(n); }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  KPI ENGINE  (revenue distributed night-by-night into months)
+// ══════════════════════════════════════════════════════════════════════════════
+function nightsBetween(start, end) { return Math.max(0, Math.round((end - start) / 86400000)); }
+
+// build per-month aggregates {revenue, nights, daysInMonth} keyed 'YYYY-MM'
+function buildMonthly(bookings) {
+  const monthly = {};
+  const touch = (y, m) => {
+    const key = `${y}-${String(m+1).padStart(2,'0')}`;
+    if (!monthly[key]) monthly[key] = { revenue: 0, nights: 0, daysInMonth: new Date(y, m+1, 0).getDate(), y, m };
+    return monthly[key];
+  };
+  bookings.forEach(b => {
+    const n = nightsBetween(b.start, b.end);
+    if (n <= 0) return;
+    const total = priceCZK(b.uid);
+    const perNight = total != null ? total / n : null;
+    for (let i = 0; i < n; i++) {
+      const day = new Date(b.start.getFullYear(), b.start.getMonth(), b.start.getDate() + i);
+      const cell = touch(day.getFullYear(), day.getMonth());
+      cell.nights += 1;
+      if (perNight != null) cell.revenue += perNight;
+    }
+  });
+  return monthly;
+}
+
+// Single night-by-night pass. Two coherent lenses, each internally consistent:
+//   • PERIOD NIGHTS  → revenue, occupancy (UNION of days, so it can never exceed the span),
+//                      and platform revenue — all night-distributed, so the headline card and
+//                      the platform breakdown always agree.
+//   • ARRIVALS       → booking count, average length of stay (full nights = textbook ALOS),
+//                      and the "bez ceny" warning — each stay counted once, in its check-in period.
+function computeKPIs(bookings) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const y = today.getFullYear(), m = today.getMonth();
+
+  const dayInPeriod = (dy, dm) => {
+    if (currentPeriod === 'all') return true;
+    if (currentPeriod === 'ytd') return dy === y;
+    return dy === y && dm === m;            // 'month'
+  };
+  const arrivalInPeriod = (b) => {
+    if (currentPeriod === 'all') return true;
+    if (currentPeriod === 'ytd') return b.start.getFullYear() === y;
+    return b.start.getFullYear() === y && b.start.getMonth() === m;
+  };
+
+  let revenue = 0, pricedNights = 0, pricedRevenue = 0;
+  let stayNights = 0, stayCount = 0, unpriced = 0;
+  const occupiedDays   = new Set();          // union → occupancy never exceeds the period length
+  const occupiedMonths = new Set();          // for the 'all' denominator span
+  const byPlat = {};
+  const plat = (p) => (byPlat[p] || (byPlat[p] = { revenue: 0, nights: 0, count: 0, unpriced: 0 }));
+
+  bookings.forEach(b => {
+    const n = nightsBetween(b.start, b.end);
+    if (n <= 0) return;                      // skip same-day / malformed entries
+    const total    = priceCZK(b.uid);
+    const perNight = total != null ? total / n : null;
+
+    // period nights → revenue, occupancy, platform revenue (night-distributed)
+    let inNights = 0, inRevenue = 0;
+    for (let i = 0; i < n; i++) {
+      const day = new Date(b.start.getFullYear(), b.start.getMonth(), b.start.getDate() + i);
+      if (!dayInPeriod(day.getFullYear(), day.getMonth())) continue;
+      inNights++;
+      occupiedDays.add(`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`);
+      occupiedMonths.add(`${day.getFullYear()}-${day.getMonth()}`);
+      if (perNight != null) inRevenue += perNight;
+    }
+    if (inNights > 0) {
+      revenue += inRevenue;
+      const pl = plat(b.platform);
+      pl.revenue += inRevenue;
+      pl.nights  += inNights;
+      if (perNight != null) { pricedNights += inNights; pricedRevenue += inRevenue; }
+    }
+
+    // arrivals → booking count, avg stay (full length), unpriced warning
+    if (arrivalInPeriod(b)) {
+      stayNights += n; stayCount += 1;
+      const pl = plat(b.platform);
+      pl.count += 1;
+      if (perNight == null) { unpriced += 1; pl.unpriced += 1; }
+    }
+  });
+
+  const occNights = occupiedDays.size;
+  let totalDays;
+  if (currentPeriod === 'month') {
+    totalDays = new Date(y, m+1, 0).getDate();
+  } else if (currentPeriod === 'ytd') {
+    const leap = (y%4===0 && y%100!==0) || y%400===0;
+    totalDays = leap ? 366 : 365;
+  } else {                                   // 'all' — contiguous span of months that hold nights
+    const keys = [...occupiedMonths].map(k => k.split('-').map(Number)).sort((a,b) => a[0]-b[0] || a[1]-b[1]);
+    totalDays = 0;
+    if (keys.length) {
+      let yy = keys[0][0], mm = keys[0][1];
+      const ly = keys[keys.length-1][0], lm = keys[keys.length-1][1];
+      while (yy < ly || (yy === ly && mm <= lm)) {
+        totalDays += new Date(yy, mm+1, 0).getDate();
+        mm++; if (mm > 11) { mm = 0; yy++; }
+      }
+    }
+  }
+  const occPct = totalDays > 0 ? Math.min(100, (occNights / totalDays) * 100) : 0;
+
+  return {
+    revenue, occPct, occNights, totalDays,
+    avgNightly: pricedNights > 0 ? pricedRevenue / pricedNights : 0,
+    avgStay:    stayCount > 0 ? stayNights / stayCount : 0,
+    bookingCount: stayCount, unpriced, byPlat, pricedRevenue,
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════════════════════════════════════
+let lastBookings = [];
+
+function periodLabel() {
+  return currentPeriod === 'month' ? 'tento měsíc' : currentPeriod === 'ytd' ? 'letos' : 'celkem';
+}
+
+function renderKPIs() {
+  if (!lastBookings.length) return;
+  const k = computeKPIs(lastBookings);
+  const row = document.getElementById('kpi-row');
+  row.innerHTML = `
+    <div class="kpi-card revenue">
+      <div class="kpi-label">Tržby (${periodLabel()})</div>
+      <div class="kpi-value">${fmtCZK(k.revenue)}</div>
+      <div class="kpi-sub">${k.unpriced > 0 ? `⚠️ ${k.unpriced} pobytů bez ceny` : '✓ všechny pobyty oceněné'}</div>
+    </div>
+    <div class="kpi-card occ">
+      <div class="kpi-label">Obsazenost</div>
+      <div class="kpi-value">${k.occPct.toFixed(0)} %</div>
+      <div class="kpi-sub">${k.occNights} obsazených nocí z ${k.totalDays}</div>
+    </div>
+    <div class="kpi-card nightly">
+      <div class="kpi-label">Průměr za noc</div>
+      <div class="kpi-value">${k.avgNightly > 0 ? fmtCZK(k.avgNightly) : '—'}</div>
+      <div class="kpi-sub">jen z oceněných pobytů</div>
+    </div>
+    <div class="kpi-card stay">
+      <div class="kpi-label">Průměrná délka</div>
+      <div class="kpi-value">${k.avgStay > 0 ? k.avgStay.toFixed(1) : '—'}</div>
+      <div class="kpi-sub">nocí / pobyt · ${k.bookingCount} pobytů</div>
+    </div>`;
+
+  // warning banner
+  const wb = document.getElementById('warn-banner');
+  if (k.unpriced > 0) {
+    wb.className = 'warn-banner show';
+    wb.innerHTML = `⚠️ <strong>${k.unpriced}</strong> ${periodLabel()} pobytů ještě nemá zadanou cenu — tržby a průměry jsou neúplné. Doplň je ve sloupci „Cena pobytu" níže.`;
+  } else { wb.className = 'warn-banner'; }
+
+  renderBreakdown(k);
+}
+
+function renderBreakdown(k) {
+  const order = ['Airbnb','Booking.com','E-chalupy','Fewo-direkt'];
+  const rows = order.filter(p => k.byPlat[p]);
+  const max = Math.max(1, ...rows.map(p => k.byPlat[p].revenue));
+  const wrap = document.getElementById('bd-rows');
+  const total = rows.reduce((s, p) => s + k.byPlat[p].revenue, 0);
+  if (!rows.length) { document.getElementById('breakdown').style.display = 'none'; return; }
+  document.getElementById('breakdown').style.display = 'block';
+  wrap.innerHTML = rows.map(p => {
+    const d = k.byPlat[p];
+    const pct = total > 0 ? (d.revenue / total) * 100 : 0;
+    const w = (d.revenue / max) * 100;
+    const note = d.unpriced > 0 ? ` <span style="color:#E67E22">(${d.unpriced} bez ceny)</span>` : '';
+    return `<div class="bd-row">
+      <div class="bd-name" style="color:${COL[p]}">${p}</div>
+      <div class="bd-bar-wrap"><div class="bd-bar" style="width:${w}%;background:${COL[p]}"></div></div>
+      <div class="bd-val">${fmtCZK(d.revenue)}</div>
+      <div class="bd-pct">${pct.toFixed(0)} %</div>
+    </div>
+    <div style="font-size:10px;color:#B0BEC5;margin:-4px 0 8px 106px">${d.count} pobytů · ${d.nights} nocí${note}</div>`;
+  }).join('');
+}
+
+// month-header revenue chips (computed per calendar month)
+function renderCalendarHeadersRevenue() {
+  const monthly = buildMonthly(lastBookings);
+  document.querySelectorAll('.month-header[data-mk]').forEach(h => {
+    const cell = monthly[h.getAttribute('data-mk')];
+    const chip = h.querySelector('.mh-rev');
+    if (chip) chip.textContent = (cell && cell.revenue > 0) ? fmtCZK(cell.revenue) : '';
+  });
+}
+
+let todayCardId = null;
+function renderCalendar(bookings) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const now   = new Date();
+  const MONTHS = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];
+  const DAYS   = ['Po','Út','St','Čt','Pá','So','Ne'];
+
+  let cur  = new Date(now.getFullYear(), now.getMonth(), 1);
+  const stop = new Date(now.getFullYear(), now.getMonth() + 14, 0);
+  const mc = document.getElementById('months');
+  mc.innerHTML = ''; todayCardId = null;
+
+  while (cur <= stop) {
+    const y = cur.getFullYear(), m = cur.getMonth();
+    const dim = new Date(y, m+1, 0).getDate();
+    const firstDow = (new Date(y, m, 1).getDay() + 6) % 7;
+    const isCurrent = y===now.getFullYear() && m===now.getMonth();
+    const cardId = `month-${y}-${m}`;
+    const mk = `${y}-${String(m+1).padStart(2,'0')}`;
+    if (isCurrent) todayCardId = cardId;
+
+    const card = document.createElement('div');
+    card.className = 'month-card'; card.id = cardId;
+    const badge = isCurrent ? `<span class="current-badge">aktuální</span>` : '';
+    card.innerHTML = `
+      <div class="month-header ${isCurrent ? 'current' : ''}" data-mk="${mk}">
+        <span>${MONTHS[m]} ${y} ${badge}</span><span class="mh-rev"></span>
+      </div>
+      <div class="day-names">${DAYS.map(n=>`<div class="day-name">${n}</div>`).join('')}</div>
+      <div class="cal-grid" id="g${y}${m}"></div>`;
+    mc.appendChild(card);
+    const grid = card.querySelector(`#g${y}${m}`);
+
+    for (let i=0; i<firstDow; i++) {
+      const c = document.createElement('div');
+      c.className = 'day-cell empty';
+      c.innerHTML = '<div class="day-num"> </div><div class="cell-halves"></div>';
+      grid.appendChild(c);
+    }
+    for (let d=1; d<=dim; d++) {
+      const cell = document.createElement('div');
+      const dt = new Date(y, m, d);
+      cell.className = 'day-cell' + (sd(dt, today) ? ' today' : '');
+      const h = getDayHalves(y, m, d, bookings);
+      const tipLines = [];
+      let halvesHtml = '<div class="cell-halves"></div>';
+      if (h.any) {
+        const amCol = h.am ? COL[h.am.platform] : '', pmCol = h.pm ? COL[h.pm.platform] : '';
+        const amSty = amCol ? `background:${amCol}` : '', pmSty = pmCol ? `background:${pmCol}` : '';
+        const amDark = h.am?.platform === 'Fewo-direkt' ? ' dark-txt' : '';
+        const pmDark = h.pm?.platform === 'Fewo-direkt' ? ' dark-txt' : '';
+        halvesHtml = `<div class="cell-halves">` +
+          `<div class="half-am${amDark}" style="${amSty}">${h.isCheckout ? '↑10' : ''}</div>` +
+          `<div class="half-pm${pmDark}" style="${pmSty}">${h.isCheckin ? '↓15' : ''}</div></div>`;
+        if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${esc(h.outGuest.guest)} (${esc(h.outGuest.platform)}) ↑ 10:00${priceTip(h.outGuest)}`);
+        if (h.stayGuest) tipLines.push(`${esc(h.stayGuest.guest)} (${esc(h.stayGuest.platform)})${priceTip(h.stayGuest)}`);
+        if (h.inGuest)   tipLines.push(`✔️ Příjezd: ${esc(h.inGuest.guest)} (${esc(h.inGuest.platform)}) ↓ 15:00${priceTip(h.inGuest)}`);
+      }
+      const tip = tipLines.length ? `<div class="tip">${tipLines.join('<br>')}</div>` : '';
+      cell.innerHTML = `<div class="day-num">${d}</div>${halvesHtml}${tip}`;
+      grid.appendChild(cell);
+    }
+    cur = new Date(y, m+1, 1);
+  }
+  renderTable(bookings, today);
+  renderKPIs();
+  renderCalendarHeadersRevenue();
+}
+
+function priceTip(b) {
+  const pc = priceCZK(b.uid);
+  return pc != null ? ` · 💰 ${fmtCZK(pc)}` : '';
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderTable(bookings, today) {
+  const upcoming = bookings.filter(b => b.end > today);
+  const past     = bookings.filter(b => b.end <= today).reverse();
+  const prices   = loadPrices();
+
+  const fillBody = (list, tbodyId, isPast) => {
+    const tb = document.getElementById(tbodyId);
+    tb.innerHTML = '';
+    list.forEach((b, i) => {
+      const n = nightsBetween(b.start, b.end);
+      const p = prices[b.uid];
+      const amount = p ? p.amount : '';
+      const cur = p ? p.currency : 'CZK';
+      const pc = priceCZK(b.uid);
+      const perNight = (pc != null && n > 0) ? fmtCZK(pc / n) : '—';
+      const tr = document.createElement('tr');
+      tr.style.background = i%2 ? '#FAFAFA' : '#fff';
+      if (isPast) tr.className = 'past-row';
+      tr.innerHTML = `
+        <td style="color:#B0BEC5">${i+1}</td>
+        <td><strong>${fmtD(b.start)}</strong></td>
+        <td>${fmtD(b.end)}</td>
+        <td>${esc(b.guest)}</td>
+        <td class="num" style="font-weight:700">${n}</td>
+        <td><span class="badge" style="background:${LIGHT[b.platform]};color:${COL[b.platform]}">${esc(b.platform)}</span></td>
+        <td class="num">
+          <input type="number" class="price-input ${amount?'has-val':''}" min="0" step="100" value="${amount}"
+                 placeholder="—" data-uid="${esc(b.uid)}"
+                 onchange="onPriceEdit(this)" oninput="this.classList.toggle('has-val', !!this.value)">
+          <select class="cur-select" data-uid="${esc(b.uid)}" onchange="onPriceEdit(this.previousElementSibling)">
+            <option value="CZK" ${cur==='CZK'?'selected':''}>Kč</option>
+            <option value="EUR" ${cur==='EUR'?'selected':''}>€</option>
+          </select>
+        </td>
+        <td class="num" data-pernight="${esc(b.uid)}">${perNight}</td>`;
+      tb.appendChild(tr);
+    });
+  };
+  fillBody(upcoming, 'tbl-upcoming', false);
+  fillBody(past, 'tbl-past', true);
+
+  const lbl = document.getElementById('archive-lbl');
+  if (lbl) lbl.textContent = `Zobrazit archiv proběhlých pobytů (${past.length})`;
+  document.getElementById('summary').style.display = 'block';
+}
+
+function onPriceEdit(inputEl) {
+  const uid = inputEl.getAttribute('data-uid');
+  const row = inputEl.closest('td');
+  const sel = row.querySelector('.cur-select');
+  setPrice(uid, inputEl.value, sel ? sel.value : 'CZK');
+  // refresh this row's per-night cell
+  const n = (() => { const b = lastBookings.find(x => x.uid === uid); return b ? nightsBetween(b.start, b.end) : 0; })();
+  const pc = priceCZK(uid);
+  const cell = document.querySelector(`[data-pernight="${cssEsc(uid)}"]`);
+  if (cell) cell.textContent = (pc != null && n > 0) ? fmtCZK(pc / n) : '—';
+}
+function cssEsc(s) { return (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/["\\]/g, '\\$&'); }
+
+function toggleArchive() {
+  const body = document.getElementById('archive-body');
+  const icon = document.getElementById('archive-icon');
+  const lbl  = document.getElementById('archive-lbl');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  icon.textContent = open ? '▸' : '▾';
+  const m = lbl.textContent.match(/\((\d+)\)/); const count = m ? m[1] : '';
+  lbl.textContent = open ? `Zobrazit archiv proběhlých pobytů (${count})` : `Skrýt archiv proběhlých pobytů (${count})`;
+}
+
+function scrollToToday() {
+  if (todayCardId) { const el = document.getElementById(todayCardId); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+function toggleSection(id) { const el = document.getElementById(id); if (el) el.style.display = el.style.display === 'none' ? '' : 'none'; }
+
+// ── period switch wiring ──────────────────────────────────────────────────────
+document.getElementById('period-switch').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  currentPeriod = btn.getAttribute('data-p');
+  [...document.querySelectorAll('#period-switch button')].forEach(b => b.classList.toggle('active', b === btn));
+  renderKPIs();
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  EXPORT
+// ══════════════════════════════════════════════════════════════════════════════
+async function exportPrices() {
+  const prices = loadPrices();
+  if (!Object.keys(prices).length) { alert('Zatím nejsou zadané žádné ceny.'); return; }
+  const payload = await encryptJSON(prices);
+  download(JSON.stringify(payload, null, 2), 'prices.json', 'application/json');
+  alert('📦 prices.json stažen (zašifrovaný).\n\nNahraj ho do repozitáře do složky data/ stejným postupem jako history.json.');
+}
+
+function exportCSV() {
+  if (!lastBookings.length) { alert('Zatím nejsou načtené žádné rezervace.'); return; }
+  // CSV-quote AND neutralize spreadsheet formula injection (a guest name starting with = + - @ etc.)
+  const csvCell = (v) => {
+    let s = String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return '"' + s.replace(/"/g, '""') + '"';
+  };
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rows = [['Check-in','Check-out','Noci','Host','Platforma','Cena','Mena','Cena_CZK','CZK_za_noc']];
+  [...lastBookings].sort((a,b)=>a.start-b.start).forEach(b => {
+    const n = nightsBetween(b.start, b.end);
+    const p = loadPrices()[b.uid];
+    const pc = priceCZK(b.uid);
+    rows.push([
+      b.start.toISOString().slice(0,10), b.end.toISOString().slice(0,10), n,
+      csvCell(b.guest), csvCell(b.platform),
+      p ? p.amount : '', p ? p.currency : '',
+      pc != null ? Math.round(pc) : '',
+      (pc != null && n>0) ? Math.round(pc/n) : '',
+    ]);
+  });
+  const csv = '﻿' + rows.map(r => r.join(';')).join('\n');   // BOM + ; for Excel/cs-CZ
+  download(csv, `villa-trzby-${today.toISOString().slice(0,10)}.csv`, 'text/csv;charset=utf-8');
+}
+
+function download(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  LOAD
+// ══════════════════════════════════════════════════════════════════════════════
+let isLoading = false;
+async function load(forceRefresh) {
+  if (isLoading) return; isLoading = true;
+  // hydrate EUR rate field
+  document.getElementById('eur-rate').value = eurRate();
+
+  const statusEl = document.getElementById('status');
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true; btn.textContent = '⏳ Načítám…';
+  statusEl.className = 'loading'; statusEl.textContent = '⏳ Načítám rezervace…';
+
+  if (!forceRefresh) {
+    const history = getAllFromHistory();
+    if (history.length) {
+      lastBookings = history; renderCalendar(history);
+      statusEl.className = 'cached';
+      statusEl.textContent = `📦 ${history.length} rezervací z cache — aktualizuji…`;
+    } else {
+      const cached = loadCache();
+      if (cached) { try { lastBookings = mergeHistory(parseICS(cached.text)); renderCalendar(lastBookings); statusEl.className='cached'; statusEl.textContent='📦 Zobrazuji cache — aktualizuji…'; } catch (_) {} }
+    }
+  }
+
+  try {
+    const [text, remoteHist, remotePrices] = await Promise.all([
+      fetchWithFallback(CAL_URL),
+      fetchAndMergeRemoteHistory(),
+      fetchAndMergeRemotePrices(),
+    ]);
+    saveCache(text);
+    lastBookings = mergeHistory(parseICS(text));
+    pruneOrphanPrices(lastBookings);   // safe here: history is fully loaded (iCal + remote)
+    renderCalendar(lastBookings);
+    const now = new Date();
+    const notes = [];
+    if (remoteHist > 0)   notes.push(`+${remoteHist} z archivu`);
+    if (remotePrices > 0) notes.push(`+${remotePrices} cen`);
+    statusEl.className = 'ok';
+    statusEl.textContent = `✅ Živě — ${lastBookings.length} rezervací · ${now.toLocaleTimeString('cs-CZ')}${notes.length ? ' · ' + notes.join(' · ') : ''}`;
+  } catch (err) {
+    const history = getAllFromHistory();
+    if (history.length) {
+      lastBookings = history; renderCalendar(history);
+      statusEl.className = 'cached';
+      statusEl.textContent = `⚠️ Offline — ${history.length} uložených rezervací. Klikněte Obnovit.`;
+    } else {
+      statusEl.className = 'error';
+      statusEl.textContent = `❌ Chyba načítání: ${err.message} — Klikněte Obnovit.`;
+    }
+    console.error(err);
+  } finally {
+    isLoading = false; btn.disabled = false; btn.textContent = '🔄 Obnovit';
+  }
+}
+</script>
+</body>
+</html>
