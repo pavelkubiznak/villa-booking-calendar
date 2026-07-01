@@ -275,6 +275,13 @@
   {
     "uid": "f7af7461aac5070d1f21263c2715f6a5@booking.com",
     "start": "2027-05-22",
+    "end": "2027-05-23",
+    "guest": "(Booking guest)",
+    "platform": "Booking.com"
+  },
+  {
+    "uid": "2a786e6fcae152658eef468be83ab412@booking.com",
+    "start": "2027-05-27",
     "end": "2027-05-29",
     "guest": "(Booking guest)",
     "platform": "Booking.com"
