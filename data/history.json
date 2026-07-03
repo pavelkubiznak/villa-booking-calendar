@@ -308,6 +308,13 @@
     "platform": "Booking.com"
   },
   {
+    "uid": "1418fb94e984-b5f89520536ae2f629e542b6729cc57f@airbnb.com",
+    "start": "2027-07-03",
+    "end": "2027-07-10",
+    "guest": "Reserved",
+    "platform": "Airbnb"
+  },
+  {
     "uid": "ad004919183024d7a5e69b2c183c53b9@booking.com",
     "start": "2027-07-12",
     "end": "2027-07-21",
