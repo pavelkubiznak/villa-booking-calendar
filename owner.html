@@ -257,19 +257,13 @@
 // ══════════════════════════════════════════════════════════════════════════════
 //  CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
-const CAL_URL = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics';
-const PROXIES = [
-  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-  url => `https://thingproxy.freeboard.io/fetch/${url}`,
-];
+const CAL_URL = 'data/feed.ics';
 const CACHE_KEY          = 'villa_cal_v2';
 const HISTORY_KEY        = 'villa_cal_history_v1';
 const PRICES_KEY         = 'villa_cal_prices_v1';
 const SETTINGS_KEY       = 'villa_cal_owner_settings_v1';
-const REMOTE_HISTORY_URL = 'https://raw.githubusercontent.com/pavelkubiznak/villa-booking-calendar/main/data/history.json';
-const REMOTE_PRICES_URL  = 'https://raw.githubusercontent.com/pavelkubiznak/villa-booking-calendar/main/data/prices.json';
+const REMOTE_HISTORY_URL = 'data/history.json';
+const REMOTE_PRICES_URL  = 'data/prices.json';
 
 // SHA-256 of the access token. The token itself is NEVER stored in this file — only its hash,
 // so reading the public repo never reveals it. To change the token, replace this hash (see README).
@@ -344,15 +338,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // ══════════════════════════════════════════════════════════════════════════════
 //  SHARED  (identical logic to the cleaning calendar)
 // ══════════════════════════════════════════════════════════════════════════════
+// Feed je snapshotovan Actionem do data/feed.ics kazde 3 h a cte se same-origin
+// z GitHub Pages — zadne CORS proxy, zadny klic feedu v HTML.
 async function fetchWithFallback(url) {
-  const tryProxy = async (makeProxy) => {
-    const res = await fetch(makeProxy(url), { signal: AbortSignal.timeout(12000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
-    if (!text.includes('BEGIN:VCALENDAR')) throw new Error('Not a valid iCal response');
-    return text;
-  };
-  return Promise.any(PROXIES.map(p => tryProxy(p)));
+  const res = await fetch(url + '?_=' + Date.now(), { signal: AbortSignal.timeout(12000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  if (!text.includes('BEGIN:VCALENDAR')) throw new Error('Not a valid iCal response');
+  return text;
 }
 function saveCache(text) { try { localStorage.setItem(CACHE_KEY, JSON.stringify({ text, ts: Date.now() })); } catch (_) {} }
 function loadCache()     { try { const r = localStorage.getItem(CACHE_KEY); return r ? JSON.parse(r) : null; } catch (_) { return null; } }
