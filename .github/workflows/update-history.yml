@@ -2,7 +2,7 @@ name: Update booking history
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '17 */3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +21,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/history.json
+          git add data/history.json data/feed.ics
           git diff --staged --quiet && echo "No changes" || (
             git commit -m "chore: update booking history [skip ci]"
             git push
