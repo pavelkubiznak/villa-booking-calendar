@@ -7,6 +7,7 @@ from urllib.request import urlopen, Request
 
 ICAL_URL     = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'
 HISTORY_FILE = 'data/history.json'
+FEED_FILE    = 'data/feed.ics'
 
 def ics_to_date(s):
     s = re.sub(r'[TZ].*', '', s)
@@ -71,6 +72,12 @@ def main():
 
     if 'BEGIN:VCALENDAR' not in text:
         print('ERROR: not a valid iCal', file=sys.stderr); sys.exit(1)
+
+    # Snapshot the raw feed so the public pages read it same-origin
+    # (no CORS proxies, no feed key embedded in the HTML).
+    with open(FEED_FILE, 'w', encoding='utf-8') as f:
+        f.write(text)
+    print(f'Feed snapshot written to {FEED_FILE}')
 
     events = parse_ics(text)
     print(f'Parsed {len(events)} real booking events (Airbnb noise excluded)')
