@@ -4,17 +4,6 @@ PRODID:-//e-chalupy.cz//Zap Calendar 1.0//CZ
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 BEGIN:VEVENT
-DTSTART:20260708T140000
-DTEND:20260711T100000
-SUMMARY:Kateřina Kokeš
-UID:18852-13141281@e-chalupy.cz
-DTSTAMP:20260226T140000
-STATUS:CONFIRMED
-Description:Telefon: 739317056\nEmail: katchenka14@volny.cz\nDospělí: 14\, 
- děti 5\nDobrý den\,\n\njaká by prosím byla cena celé vily?\n\nDěkuji za od
- pověď \n\nKateřina Kokeš
-END:VEVENT
-BEGIN:VEVENT
 DTSTART:20260712T140000
 DTEND:20260718T100000
 SUMMARY:jens
