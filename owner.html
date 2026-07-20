@@ -258,12 +258,19 @@
 //  CONFIG
 // ══════════════════════════════════════════════════════════════════════════════
 const CAL_URL = 'data/feed.ics';
-const CACHE_KEY          = 'villa_cal_v2';
-const HISTORY_KEY        = 'villa_cal_history_v1';
-const PRICES_KEY         = 'villa_cal_prices_v1';
+// Versioned cache keys. v3 / v2 purge the older name-bearing caches (the public data
+// no longer carries guest names). Prices bump to v2 because their keys migrate raw uid → uidh.
+const CACHE_KEY          = 'villa_cal_v3';
+const HISTORY_KEY        = 'villa_cal_history_v2';
+const PRICES_KEY         = 'villa_cal_prices_v2';
+const PRICES_KEY_LEGACY  = 'villa_cal_prices_v1';   // migrated once into v2, then read-only
 const SETTINGS_KEY       = 'villa_cal_owner_settings_v1';
 const REMOTE_HISTORY_URL = 'data/history.json';
 const REMOTE_PRICES_URL  = 'data/prices.json';
+
+// One-off purge of pre-anonymization caches that could still hold guest names.
+try { localStorage.removeItem('villa_cal_v2'); } catch (_) {}
+try { localStorage.removeItem('villa_cal_history_v1'); } catch (_) {}
 
 // SHA-256 of the access token. The token itself is NEVER stored in this file — only its hash,
 // so reading the public repo never reveals it. To change the token, replace this hash (see README).
@@ -273,6 +280,78 @@ const PBKDF2_ITERS = 310000;                   // OWASP-recommended floor (runs 
 
 const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12' };
 const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
+const RESERVATION_LABEL = 'Rezervace';   // guest names are gone — look the guest up in the platform extranet
+function platformOf(s) { return COL[s] ? s : 'E-chalupy'; }
+function is16hex(k) { return /^[0-9a-f]{16}$/.test(String(k)); }
+
+// ── uidh hashing (synchronous, pure-JS) ────────────────────────────────────────
+// uidHash(uid) = first 16 hex chars of sha256(uid), IDENTICAL to Python
+// update_history.py and index.html (utf-8 input, lowercase hex output). Kept separate
+// from the async sha256hex() used by the token gate. Used to migrate price keys
+// (raw uid → uidh) so prices still line up with the anonymized bookings.
+function sha256hexSync(str) {
+  function rotr(n, x) { return (x >>> n) | (x << (32 - n)); }
+  const K = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const bytes = [];
+  for (let i = 0; i < str.length; i++) {
+    let c = str.charCodeAt(i);
+    if (c < 0x80) bytes.push(c);
+    else if (c < 0x800) { bytes.push(0xc0 | (c >> 6), 0x80 | (c & 0x3f)); }
+    else if (c >= 0xd800 && c <= 0xdbff) {
+      const c2 = str.charCodeAt(++i);
+      c = 0x10000 + ((c & 0x3ff) << 10) + (c2 & 0x3ff);
+      bytes.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 0x3f), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f));
+    } else { bytes.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f)); }
+  }
+  const l = bytes.length;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  const bitLen = l * 8;
+  bytes.push(0, 0, 0, 0, (bitLen >>> 24) & 0xff, (bitLen >>> 16) & 0xff, (bitLen >>> 8) & 0xff, bitLen & 0xff);
+  const w = new Array(64);
+  for (let i = 0; i < bytes.length; i += 64) {
+    for (let t = 0; t < 16; t++)
+      w[t] = (bytes[i+t*4] << 24) | (bytes[i+t*4+1] << 16) | (bytes[i+t*4+2] << 8) | (bytes[i+t*4+3]);
+    for (let t = 16; t < 64; t++) {
+      const s0 = rotr(7, w[t-15]) ^ rotr(18, w[t-15]) ^ (w[t-15] >>> 3);
+      const s1 = rotr(17, w[t-2]) ^ rotr(19, w[t-2]) ^ (w[t-2] >>> 10);
+      w[t] = (w[t-16] + s0 + w[t-7] + s1) | 0;
+    }
+    let a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for (let t = 0; t < 64; t++) {
+      const S1 = rotr(6, e) ^ rotr(11, e) ^ rotr(25, e);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[t] + w[t]) | 0;
+      const S0 = rotr(2, a) ^ rotr(13, a) ^ rotr(22, a);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H = [ (H[0]+a)|0,(H[1]+b)|0,(H[2]+c)|0,(H[3]+d)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+h)|0 ];
+  }
+  return H.map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
+}
+function uidHash(uid) { return sha256hexSync(String(uid)).slice(0, 16); }
+// Re-key a price map: raw uid → uidh (16-hex keys are already migrated, left as-is).
+function migratePriceKeys(obj) {
+  const out = {};
+  Object.keys(obj || {}).forEach(k => {
+    const nk = is16hex(k) ? k : uidHash(k);
+    const cur = out[nk];
+    // on collision keep the most recently edited entry
+    if (!cur || (obj[k]?.mtime || 0) >= (cur.mtime || 0)) out[nk] = obj[k];
+  });
+  return out;
+}
 
 let currentPeriod = 'ytd';   // 'month' | 'ytd' | 'all'
 let cryptoKey = null;        // AES-GCM key derived from token (set after unlock)
@@ -355,11 +434,10 @@ function loadHistory() {
 }
 function mergeHistory(freshEvents) {
   const history = loadHistory();
-  freshEvents
-    .filter(ev => ev.guest !== 'Airbnb (Not available)')
-    .forEach(ev => {
-      history[ev.uid] = { uid: ev.uid, startTs: ev.start.getTime(), endTs: ev.end.getTime(), guest: ev.guest, platform: ev.platform };
-    });
+  freshEvents.forEach(ev => {
+    if (!ev.uid) return;
+    history[ev.uid] = { uid: ev.uid, startTs: ev.start.getTime(), endTs: ev.end.getTime(), platform: ev.platform };
+  });
   const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 18); cutoff.setHours(0,0,0,0);
   Object.keys(history).forEach(uid => { if (history[uid].endTs < cutoff.getTime()) delete history[uid]; });
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {}
@@ -367,8 +445,7 @@ function mergeHistory(freshEvents) {
 }
 function historyToEvents(history) {
   return Object.values(history)
-    .filter(h => h.guest !== 'Airbnb (Not available)')
-    .map(h => ({ uid: h.uid, start: new Date(h.startTs), end: new Date(h.endTs), guest: h.guest, platform: h.platform }))
+    .map(h => ({ uid: h.uid, start: new Date(h.startTs), end: new Date(h.endTs), platform: platformOf(h.platform) }))
     .sort((a, b) => a.start - b.start);
 }
 function getAllFromHistory() { return historyToEvents(loadHistory()); }
@@ -379,20 +456,14 @@ function parseICS(text) {
   const unfolded = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '');
   unfolded.split('BEGIN:VEVENT').slice(1).forEach(block => {
     const get = (key) => { const m = block.match(new RegExp('^' + key + '[^:]*:(.+)$', 'm')); return m ? m[1].trim() : ''; };
+    // feed.ics is sanitized: UID line holds uidh, SUMMARY holds the platform name.
     const uid = get('UID'), summary = get('SUMMARY'), dtstart = get('DTSTART'), dtend = get('DTEND'), status = get('STATUS');
     if (!dtstart || !dtend) return;
     if (status && status !== 'CONFIRMED') return;
     const start = icsToDate(dtstart), end = icsToDate(dtend);
     if (!start || !end || end < cutoff) return;
-    let platform = 'E-chalupy';
-    if (uid.includes('@airbnb.com'))       platform = 'Airbnb';
-    else if (uid.includes('@booking.com')) platform = 'Booking.com';
-    else if (!uid.includes('@'))           platform = 'Fewo-direkt';
-    let guest = summary || '(reserved)';
-    if (guest.toUpperCase() === 'RESERVED') guest = 'Reserved';
-    if (guest.startsWith('CLOSED'))         guest = '(Booking guest)';
-    if (guest === 'Airbnb (Not available)') return;
-    events.push({ uid, start, end, guest, platform });
+    const platform = platformOf(summary);
+    events.push({ uid, start, end, platform });
   });
   return events.sort((a, b) => a.start - b.start);
 }
@@ -419,13 +490,14 @@ async function fetchAndMergeRemoteHistory() {
     if (!res.ok) return 0;
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) return 0;
+    // Sanitized schema: { uidh, start, end, platform } — no guest field.
+    // (Tolerate a legacy raw uid by hashing it, so a stale file still merges cleanly.)
     const events = data.map(e => ({
-        uid: e.uid, start: new Date(e.start + 'T00:00:00'), end: new Date(e.end + 'T00:00:00'),
-        guest: e.guest,
-        platform: COL[e.platform] ? e.platform : 'E-chalupy',   // whitelist: never trust a free-form platform from the remote file
+        uid: e.uidh || (e.uid ? uidHash(e.uid) : ''),
+        start: new Date(e.start + 'T00:00:00'), end: new Date(e.end + 'T00:00:00'),
+        platform: platformOf(e.platform),   // whitelist: never trust a free-form platform from the remote file
       }))
-      .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end))
-      .filter(e => e.guest !== 'Airbnb (Not available)');
+      .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
     if (events.length === 0) return 0;
     mergeHistory(events);
     return events.length;
@@ -442,6 +514,26 @@ function loadPrices() {
 function savePrices(prices) {
   // returns true on success; false (not silent) if persistence failed so callers can warn the owner
   try { localStorage.setItem(PRICES_KEY, JSON.stringify(prices)); return true; } catch (_) { return false; }
+}
+
+// One-time migration: prices used to be keyed by the raw booking UID; bookings are now
+// keyed by uidh. Re-key any legacy price map so prices still attach to their booking.
+// Idempotent: 16-hex keys are left untouched, so re-running is a no-op.
+function migratePricesOnce() {
+  try {
+    const cur = localStorage.getItem(PRICES_KEY);
+    if (cur) {
+      const obj = JSON.parse(cur) || {};
+      if (Object.keys(obj).some(k => !is16hex(k))) {
+        localStorage.setItem(PRICES_KEY, JSON.stringify(migratePriceKeys(obj)));
+      }
+      return;
+    }
+    // v2 absent → seed it from the legacy v1 map (re-keyed). v1 is left as an untouched backup.
+    const legacyRaw = localStorage.getItem(PRICES_KEY_LEGACY);
+    const legacy = legacyRaw ? (JSON.parse(legacyRaw) || {}) : {};
+    localStorage.setItem(PRICES_KEY, JSON.stringify(migratePriceKeys(legacy)));
+  } catch (_) {}
 }
 
 function setPrice(uid, amount, currency) {
@@ -472,8 +564,11 @@ async function fetchAndMergeRemotePrices() {
     // Require authenticated (AES-GCM) payloads only. A plaintext prices.json in the PUBLIC repo
     // would be unauthenticated and could be substituted to inject prices — never trust it.
     if (!parsed || !parsed.__enc__) { console.warn('prices.json is not encrypted — ignoring'); return 0; }
-    const remote = await decryptJSON(parsed);        // throws on tamper / wrong key → caught below
-    if (!remote || typeof remote !== 'object') return 0;
+    const remoteRaw = await decryptJSON(parsed);     // throws on tamper / wrong key → caught below
+    if (!remoteRaw || typeof remoteRaw !== 'object') return 0;
+    // A prices.json exported before anonymization is keyed by raw uid — re-key to uidh
+    // (same algo) so it lines up with the anonymized bookings and local v2 prices.
+    const remote = migratePriceKeys(remoteRaw);
     const local = loadPrices();
     let added = 0;
     Object.keys(remote).forEach(uid => {
@@ -771,9 +866,9 @@ function renderCalendar(bookings) {
         halvesHtml = `<div class="cell-halves">` +
           `<div class="half-am${amDark}" style="${amSty}">${h.isCheckout ? '↑10' : ''}</div>` +
           `<div class="half-pm${pmDark}" style="${pmSty}">${h.isCheckin ? '↓15' : ''}</div></div>`;
-        if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${esc(h.outGuest.guest)} (${esc(h.outGuest.platform)}) ↑ 10:00${priceTip(h.outGuest)}`);
-        if (h.stayGuest) tipLines.push(`${esc(h.stayGuest.guest)} (${esc(h.stayGuest.platform)})${priceTip(h.stayGuest)}`);
-        if (h.inGuest)   tipLines.push(`✔️ Příjezd: ${esc(h.inGuest.guest)} (${esc(h.inGuest.platform)}) ↓ 15:00${priceTip(h.inGuest)}`);
+        if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${esc(h.outGuest.platform)} ↑ 10:00${priceTip(h.outGuest)}`);
+        if (h.stayGuest) tipLines.push(`${RESERVATION_LABEL} · ${esc(h.stayGuest.platform)}${priceTip(h.stayGuest)}`);
+        if (h.inGuest)   tipLines.push(`✔️ Příjezd: ${esc(h.inGuest.platform)} ↓ 15:00${priceTip(h.inGuest)}`);
       }
       const tip = tipLines.length ? `<div class="tip">${tipLines.join('<br>')}</div>` : '';
       cell.innerHTML = `<div class="day-num">${d}</div>${halvesHtml}${tip}`;
@@ -814,7 +909,7 @@ function renderTable(bookings, today) {
         <td style="color:#B0BEC5">${i+1}</td>
         <td><strong>${fmtD(b.start)}</strong></td>
         <td>${fmtD(b.end)}</td>
-        <td>${esc(b.guest)}</td>
+        <td style="color:#95A5A6">${RESERVATION_LABEL}</td>
         <td class="num" style="font-weight:700">${n}</td>
         <td><span class="badge" style="background:${LIGHT[b.platform]};color:${COL[b.platform]}">${esc(b.platform)}</span></td>
         <td class="num">
@@ -902,7 +997,7 @@ function exportCSV() {
     const pc = priceCZK(b.uid);
     rows.push([
       b.start.toISOString().slice(0,10), b.end.toISOString().slice(0,10), n,
-      csvCell(b.guest), csvCell(b.platform),
+      csvCell(RESERVATION_LABEL), csvCell(b.platform),
       p ? p.amount : '', p ? p.currency : '',
       pc != null ? Math.round(pc) : '',
       (pc != null && n>0) ? Math.round(pc/n) : '',
@@ -925,6 +1020,7 @@ function download(content, filename, type) {
 let isLoading = false;
 async function load(forceRefresh) {
   if (isLoading) return; isLoading = true;
+  migratePricesOnce();   // re-key legacy prices (raw uid → uidh) before anything reads them
   // hydrate EUR rate field
   document.getElementById('eur-rate').value = eurRate();
 

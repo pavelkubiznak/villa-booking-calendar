@@ -1,373 +1,320 @@
 [
   {
-    "uid": "18852-10696411@e-chalupy.cz",
+    "uidh": "4b10223bc51a8e91",
     "start": "2026-04-25",
     "end": "2026-05-02",
-    "guest": "bohemia - Vrieling",
     "platform": "E-chalupy"
   },
   {
-    "uid": "6f84cc3c57d0d332daf948e0973eff6a@booking.com",
+    "uidh": "86a96121a42679e7",
     "start": "2026-05-08",
     "end": "2026-05-10",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18852-10544655@e-chalupy.cz",
+    "uidh": "a096527c69dde3fe",
     "start": "2026-05-14",
     "end": "2026-05-17",
-    "guest": "martiz od felixe",
     "platform": "E-chalupy"
   },
   {
-    "uid": "59bdcaeb186dab9d00115b0bf2e49ac5@booking.com",
+    "uidh": "42e109a7788e5d81",
     "start": "2026-05-22",
     "end": "2026-05-25",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "1418fb94e984-743a6886189e0e9f2e25bfd2ce54b86c@airbnb.com",
+    "uidh": "05269fcea396fbf3",
     "start": "2026-05-25",
     "end": "2026-05-29",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "492a6252276e386e5f85e748cc13dde9@booking.com",
+    "uidh": "593c8ccae6490457",
     "start": "2026-05-29",
     "end": "2026-05-31",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "2a1d927b496a60f4af6c03be1fd8b80a@booking.com",
+    "uidh": "fd6ff15a677b0b27",
     "start": "2026-06-04",
     "end": "2026-06-07",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18852-10591964@e-chalupy.cz",
+    "uidh": "f875c6eef4d6e4b8",
     "start": "2026-06-11",
     "end": "2026-06-14",
-    "guest": "Soňa Černá - brali si to i v roce 2025",
     "platform": "E-chalupy"
   },
   {
-    "uid": "442d8b3add5813150670cc47ecd4e6f0@booking.com",
+    "uidh": "df3ba2880f0ab09e",
     "start": "2026-06-15",
     "end": "2026-06-22",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "c01cd2de1d0e43d1c3cc34ed42400ed8@booking.com",
+    "uidh": "ab75e02fa061b9bc",
     "start": "2026-06-26",
     "end": "2026-07-02",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "1418fb94e984-e6c7e9832b93249c493a772a5dc9958e@airbnb.com",
+    "uidh": "cc0faeeb1844151f",
     "start": "2026-07-03",
     "end": "2026-07-08",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "18852-13141281@e-chalupy.cz",
+    "uidh": "0af9423cbd7dfdab",
     "start": "2026-07-08",
     "end": "2026-07-11",
-    "guest": "Kateřina Kokeš",
     "platform": "E-chalupy"
   },
   {
-    "uid": "18852-11306544@e-chalupy.cz",
+    "uidh": "df42494f06851d4d",
     "start": "2026-07-12",
     "end": "2026-07-18",
-    "guest": "jens",
     "platform": "E-chalupy"
   },
   {
-    "uid": "18852-11157098@e-chalupy.cz",
+    "uidh": "4223dbb99ead635a",
     "start": "2026-07-18",
     "end": "2026-07-25",
-    "guest": "Anna",
     "platform": "E-chalupy"
   },
   {
-    "uid": "18852-11306654@e-chalupy.cz",
+    "uidh": "1b73471f9b0d57e4",
     "start": "2026-07-25",
     "end": "2026-08-01",
-    "guest": "(reserved)",
     "platform": "E-chalupy"
   },
   {
-    "uid": "18852-11531928@e-chalupy.cz",
+    "uidh": "cfcea2b61463c82d",
     "start": "2026-08-01",
     "end": "2026-08-08",
-    "guest": "niklickova pes a vouickar",
     "platform": "E-chalupy"
   },
   {
-    "uid": "18852-11531560@e-chalupy.cz",
+    "uidh": "f1ae2511167c79ac",
     "start": "2026-08-08",
     "end": "2026-08-15",
-    "guest": "Jana Flámová",
     "platform": "E-chalupy"
   },
   {
-    "uid": "374ecb7a-91d6-40a6-9fed-fc82639215c2",
+    "uidh": "7256c78ed680df79",
     "start": "2026-08-15",
     "end": "2026-08-22",
-    "guest": "Unter Vorbehalt - Birk",
     "platform": "Fewo-direkt"
   },
   {
-    "uid": "72959898141731fe581b70d9488b9740@booking.com",
+    "uidh": "902361665a609b37",
     "start": "2026-08-22",
     "end": "2026-08-28",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18852-13892877@e-chalupy.cz",
+    "uidh": "fe0bfa47d0552690",
     "start": "2026-08-28",
     "end": "2026-08-30",
-    "guest": "Name:  Marius Marquardt - lodgify",
     "platform": "E-chalupy"
   },
   {
-    "uid": "3fe5dba568b5c9bc8cd5e3f61cb3097d@booking.com",
+    "uidh": "f9dd2388d2c4c058",
     "start": "2026-08-30",
     "end": "2026-09-06",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18852-13887623@e-chalupy.cz",
+    "uidh": "c3b34d6c3af39ee6",
     "start": "2026-09-11",
     "end": "2026-09-13",
-    "guest": "školení p. svoboda",
     "platform": "E-chalupy"
   },
   {
-    "uid": "1418fb94e984-2218a6a0bb12c35085b6a6e592f16796@airbnb.com",
+    "uidh": "c3c837c26ace90ac",
     "start": "2026-09-19",
     "end": "2026-09-26",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "bc987c7fcf8108eacad4a120617d542b@booking.com",
+    "uidh": "36dc81faa40bdb13",
     "start": "2026-10-02",
     "end": "2026-10-04",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18852-12542036@e-chalupy.cz",
+    "uidh": "113739dbb85a5343",
     "start": "2026-10-10",
     "end": "2026-10-17",
-    "guest": "maeco nemecko",
     "platform": "E-chalupy"
   },
   {
-    "uid": "f68f96a21f736c8ef3b5390357d441df@booking.com",
+    "uidh": "1e3f88584ce53102",
     "start": "2026-10-18",
     "end": "2026-10-24",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "1418fb94e984-e9a15e8ce931c741f26ece21bf6baf5f@airbnb.com",
+    "uidh": "3fb52e213c8b34e4",
     "start": "2026-10-24",
     "end": "2026-10-26",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "1418fb94e984-094182d94d44ff57583d168bf02aa791@airbnb.com",
+    "uidh": "e8b4d62d4af2c11d",
     "start": "2026-10-28",
     "end": "2026-10-30",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "00d7773e-c446-4ada-b55f-9e46ce594415",
+    "uidh": "f5d5488f55688e08",
     "start": "2026-10-30",
     "end": "2026-11-02",
-    "guest": "Reserved - Matthias",
     "platform": "Fewo-direkt"
   },
   {
-    "uid": "18852-13680591@e-chalupy.cz",
+    "uidh": "ff1d96d5b409b987",
     "start": "2026-11-02",
     "end": "2026-11-30",
-    "guest": "rekonstrukce schody",
     "platform": "E-chalupy"
   },
   {
-    "uid": "18852-13680593@e-chalupy.cz",
+    "uidh": "c796937bdd725da1",
     "start": "2026-11-30",
     "end": "2026-12-18",
-    "guest": "(reserved)",
     "platform": "E-chalupy"
   },
   {
-    "uid": "1418fb94e984-451bce4ed5c1abe69e37aa147093c78e@airbnb.com",
+    "uidh": "c8a23f3ddfd52fe3",
     "start": "2026-12-19",
     "end": "2026-12-26",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "18852-11548029@e-chalupy.cz",
+    "uidh": "bed046da25665575",
     "start": "2026-12-26",
     "end": "2027-01-03",
-    "guest": "Wäre das Haus noch frei ?odeslal: Julia Quast\\, telefon: 01627543449požadovaný termín: 28.12.2026-03.01.2027počet osob: 14 dospělých + 5 dětíe",
     "platform": "E-chalupy"
   },
   {
-    "uid": "e9bc93206e53cb00904d8704bfa81f0e@booking.com",
+    "uidh": "21e3d36c3b02fb33",
     "start": "2027-01-03",
     "end": "2027-01-10",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18852-13017851@e-chalupy.cz",
+    "uidh": "86125432395831dd",
     "start": "2027-01-30",
     "end": "2027-02-06",
-    "guest": "tanja německo",
     "platform": "E-chalupy"
   },
   {
-    "uid": "1418fb94e984-41dd34042e29350aaa1b708981741e6b@airbnb.com",
+    "uidh": "64cdae4a4d8804f0",
     "start": "2027-02-06",
     "end": "2027-02-13",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "18852-13010132@e-chalupy.cz",
+    "uidh": "19d51f88e4ed6e00",
     "start": "2027-02-20",
     "end": "2027-02-27",
-    "guest": "mark kroeze 3015 EURo bez dalších poplatků - jenom městská taxa",
     "platform": "E-chalupy"
   },
   {
-    "uid": "1418fb94e984-dc2861185c4a57e1d77343d389391400@airbnb.com",
+    "uidh": "c161e61dd8621520",
     "start": "2027-04-29",
     "end": "2027-05-02",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "18852-13892906@e-chalupy.cz",
+    "uidh": "5e11edb78d1fce7e",
     "start": "2027-05-05",
     "end": "2027-05-09",
-    "guest": "andrea papritz - airbnb (nepropsalo se mi to sem)",
     "platform": "E-chalupy"
   },
   {
-    "uid": "bdff2eb7-88df-4995-b09a-006f108b9a9f",
+    "uidh": "975d284eb3cde10b",
     "start": "2027-05-14",
     "end": "2027-05-18",
-    "guest": "Reserved - Glen",
     "platform": "Fewo-direkt"
   },
   {
-    "uid": "f7af7461aac5070d1f21263c2715f6a5@booking.com",
+    "uidh": "3100d5fc809e5ca8",
     "start": "2027-05-22",
     "end": "2027-05-29",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "970286415dfbd55071a3187a99c34f06@booking.com",
+    "uidh": "ca3fddf724b7a8ee",
     "start": "2027-05-23",
     "end": "2027-05-27",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "2a786e6fcae152658eef468be83ab412@booking.com",
+    "uidh": "af6258992c171964",
     "start": "2027-05-27",
     "end": "2027-05-29",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18852-14776571@e-chalupy.cz",
+    "uidh": "4074ff4000b5af7f",
     "start": "2027-06-10",
     "end": "2027-06-13",
-    "guest": "černá - už u nás byla 2x",
     "platform": "E-chalupy"
   },
   {
-    "uid": "1418fb94e984-4b388dafdcfc3df63001fefb2613a0e5@airbnb.com",
+    "uidh": "455b4901bb9ca591",
     "start": "2027-06-17",
     "end": "2027-06-20",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "781bc8bf-3d85-4639-b590-56bab162df78",
+    "uidh": "87ce862a9c3d89d2",
     "start": "2027-06-24",
     "end": "2027-06-27",
-    "guest": "Tentative - Claudia",
     "platform": "Fewo-direkt"
   },
   {
-    "uid": "a467668a5979544ff1b9ac0656e04615@booking.com",
+    "uidh": "0dcf556ecb298ab7",
     "start": "2027-07-03",
     "end": "2027-07-10",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "1418fb94e984-b5f89520536ae2f629e542b6729cc57f@airbnb.com",
+    "uidh": "44f67225fb4ecfb9",
     "start": "2027-07-03",
     "end": "2027-07-10",
-    "guest": "Reserved",
     "platform": "Airbnb"
   },
   {
-    "uid": "ad004919183024d7a5e69b2c183c53b9@booking.com",
+    "uidh": "fb224018908e978b",
     "start": "2027-07-12",
     "end": "2027-07-21",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18c84aa88629d21718c72e754454569e@booking.com",
+    "uidh": "7d554b0cd7bfedf3",
     "start": "2027-08-30",
     "end": "2027-09-05",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "6a9fb937bf31098439c3ad808531a269@booking.com",
+    "uidh": "75f8ee15e5177604",
     "start": "2028-01-02",
     "end": "2028-01-16",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "a6c2fff25365e1e76c2173d516336a93@booking.com",
+    "uidh": "1160587c4e9a34f0",
     "start": "2028-01-12",
     "end": "2028-01-13",
-    "guest": "(Booking guest)",
     "platform": "Booking.com"
   },
   {
-    "uid": "18852-14411474@e-chalupy.cz",
+    "uidh": "30fa80afc7c4aae6",
     "start": "2028-05-25",
     "end": "2028-05-28",
-    "guest": "Moritz BR",
     "platform": "E-chalupy"
   }
 ]

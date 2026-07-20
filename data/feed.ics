@@ -1,377 +1,214 @@
 BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//e-chalupy.cz//Zap Calendar 1.0//CZ
+PRODID:-//villa-rudolf//sanitized booking feed//CZ
 CALSCALE:GREGORIAN
 METHOD:PUBLISH
 BEGIN:VEVENT
 DTSTART:20260718T140000
 DTEND:20260725T100000
-SUMMARY:Anna
-UID:18852-11157098@e-chalupy.cz
 DTSTAMP:20250825T140000
+SUMMARY:E-chalupy
+UID:4223dbb99ead635a
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: annakrupicka89@gmail.com\nDospělí: 7\, děti 1
- 2\nDobry den\nMám zájem o ubytování u Vás. Je nás 7 matek a 12 dětí. Můžet
- e prosím potvrdit jestli v objektu je dohromady 7 ložnic a poslat cenovou 
- nabídku?\nDěkuji s pozdravem\nKrupička
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20260725T140000
 DTEND:20260801T100000
-SUMMARY:
-UID:18852-11306654@e-chalupy.cz
 DTSTAMP:20250911T140000
+SUMMARY:E-chalupy
+UID:1b73471f9b0d57e4
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nDobrý den\, děti budou
-  ve věku 11\, 11\, 5\, 5\, 4 a 2 roky.\nDana Kredvíková\n\nodeslal: Dana K
- redvíková\, telefon: 774407089\npožadovaný termín: 25.7. - 1.8.2026\npočet
-  osob: 14 dospělých + 6 dětí\nemail: dana.kredvikova@seznam.cz
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20260801T140000
 DTEND:20260808T100000
-SUMMARY:niklickova pes a vouickar
-UID:18852-11531928@e-chalupy.cz
 DTSTAMP:20251005T140000
+SUMMARY:E-chalupy
+UID:cfcea2b61463c82d
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20260808T140000
 DTEND:20260815T100000
-SUMMARY:Jana Flámová
-UID:18852-11531560@e-chalupy.cz
 DTSTAMP:20251005T140000
+SUMMARY:E-chalupy
+UID:f1ae2511167c79ac
 STATUS:CONFIRMED
-Description:Telefon: 775241295\nEmail: jankaflamova@seznam.cz\nDospělí: 10\
- , děti 9\nDobrý den\,\nměla bych zájem o pronájem Vaší vily v termínu 8.-1
- 5.8.2026. Jsme skupinka slušných 5 rodin. Děti od 2 do sedmi let\, bez zví
- řat. \nPodle kalendáře máte ještě volno\, je to tak? Prosím o zaslání bliž
- ších informací a případné potvrzení rezervace.\nS pozdravem \nJana Flámová
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20260815T140000
 DTEND:20260822T100000
-SUMMARY:Unter Vorbehalt - Birk
-UID:374ecb7a-91d6-40a6-9fed-fc82639215c2
 DTSTAMP:20251024T140000
+SUMMARY:Fewo-direkt
+UID:7256c78ed680df79
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
-END:VEVENT
-BEGIN:VEVENT
-DTSTART:20260822T140000
-DTEND:20260828T100000
-SUMMARY:CLOSED - Not available
-UID:72959898141731fe581b70d9488b9740@booking.com
-DTSTAMP:20260720T140000
-STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20260828T140000
 DTEND:20260830T100000
-SUMMARY:Name:  Marius Marquardt - lodgify
-UID:18852-13892877@e-chalupy.cz
 DTSTAMP:20260428T140000
+SUMMARY:E-chalupy
+UID:fe0bfa47d0552690
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 18\, děti 0\nNew Confirmed Booking
- : Marius (2 Nights\, Arrival: Aug 28 2026) - #B20156818\nInbox\n\nLodgify 
- &lt\;no-reply@messaging.lodgify.com&gt\;\n8:54 PM (2 hours ago)\nto me\n\n
- Hello Pavel Kubizňák\,\n\nYou have received a new confirmed booking (Id: B
- 20156818).\n\nGuest comment:\n\nView booking in reservation system\nPavel 
- Kubizňák - Villa Rudolf\n\n+420775220785\n\nhttps://villarudolf.com\n\n---
- -----------------------------------------\n\n\nBOOKING (#B20156818)\n\nSta
- tus: Booked\n\nArrival: Aug 28 2026\n\nDeparture: Aug 30 2026\n\nNights: 2
- \n\nProperty: Villa Rudolf\n\nGuests: 18 guest(s)\n\n\n-------------------
- -------------------------\n\n\nQUOTE (#18699390)\n\nStatus: Agreed\n\n\nPR
- ICE\n\nVilla Rudolf    EUR 1078.00\n\nFinal cleaning    EUR 150.00\n\nTour
- ist tax    EUR 36.00\n\nTotal booking amount: EUR 1264.00\n\n\nPayment Sch
- edule\n\nDue on Apr 28 2026    EUR 1264.00    Paid\n\n\nCancellation Polic
- y\n\n50% of prepayments made are refundable when cancellation is made 60 d
- ay(s) before arrival or earlier.\nCancellations made after this period are
-  non-refundable.\n\n\nSecurity deposit\n\nPre-authorize guest’s card for E
- UR 250.00 from Aug 28 2026.\n\nRelease remaining pre-authorizations on Sep
-  02 2026.\n\n\nTransactions\n\nNo transactions yet.\n---------------------
- -----------------------\n\n\nGuest details\n\nName:  Marius Marquardt\n\nP
- hone: +4915731307083\n\nEmail: marius.reinke1@gmail.com\n\nCountry: German
- y
-END:VEVENT
-BEGIN:VEVENT
-DTSTART:20260830T140000
-DTEND:20260906T100000
-SUMMARY:CLOSED - Not available
-UID:3fe5dba568b5c9bc8cd5e3f61cb3097d@booking.com
-DTSTAMP:20260720T140000
-STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20260911T140000
 DTEND:20260913T100000
-SUMMARY:školení p. svoboda
-UID:18852-13887623@e-chalupy.cz
 DTSTAMP:20260428T140000
+SUMMARY:E-chalupy
+UID:c3b34d6c3af39ee6
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nzařizovala jeho sestra
-  \nlena73@seznam.cz\n725518292\n\nbude to školení pro právníky a zubaře
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20260919T140000
 DTEND:20260926T100000
-SUMMARY:Reserved
-UID:1418fb94e984-2218a6a0bb12c35085b6a6e592f16796@airbnb.com
 DTSTAMP:20260327T140000
+SUMMARY:Airbnb
+UID:c3c837c26ace90ac
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nReservation URL: https
- ://www.airbnb.com/hosting/reservations/details/HMSYTFP4FW\nPhone Number (L
- ast 4 Digits): 9922
-END:VEVENT
-BEGIN:VEVENT
-DTSTART:20261002T140000
-DTEND:20261004T100000
-SUMMARY:CLOSED - Not available
-UID:bc987c7fcf8108eacad4a120617d542b@booking.com
-DTSTAMP:20260720T140000
-STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20261010T140000
 DTEND:20261017T100000
-SUMMARY:maeco nemecko
-UID:18852-12542036@e-chalupy.cz
 DTSTAMP:20251219T140000
+SUMMARY:E-chalupy
+UID:113739dbb85a5343
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
-END:VEVENT
-BEGIN:VEVENT
-DTSTART:20261018T140000
-DTEND:20261024T100000
-SUMMARY:CLOSED - Not available
-UID:f68f96a21f736c8ef3b5390357d441df@booking.com
-DTSTAMP:20260720T140000
-STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20261024T140000
 DTEND:20261026T100000
-SUMMARY:Reserved
-UID:1418fb94e984-e9a15e8ce931c741f26ece21bf6baf5f@airbnb.com
 DTSTAMP:20260720T140000
+SUMMARY:Airbnb
+UID:3fb52e213c8b34e4
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nReservation URL: https
- ://www.airbnb.com/hosting/reservations/details/HMNMW2MSCK\nPhone Number (L
- ast 4 Digits): 2969
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20261028T140000
 DTEND:20261030T100000
-SUMMARY:Reserved
-UID:1418fb94e984-094182d94d44ff57583d168bf02aa791@airbnb.com
 DTSTAMP:20260520T140000
+SUMMARY:Airbnb
+UID:e8b4d62d4af2c11d
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nReservation URL: https
- ://www.airbnb.com/hosting/reservations/details/HMD8TAJXZ5\nPhone Number (L
- ast 4 Digits): 4492
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20261030T140000
 DTEND:20261102T100000
-SUMMARY:Reserved - Matthias
-UID:00d7773e-c446-4ada-b55f-9e46ce594415
 DTSTAMP:20260330T140000
+SUMMARY:Fewo-direkt
+UID:f5d5488f55688e08
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20261102T140000
 DTEND:20261130T100000
-SUMMARY:rekonstrukce schody
-UID:18852-13680591@e-chalupy.cz
 DTSTAMP:20260410T140000
+SUMMARY:E-chalupy
+UID:ff1d96d5b409b987
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20261130T140000
 DTEND:20261218T100000
-SUMMARY:
-UID:18852-13680593@e-chalupy.cz
 DTSTAMP:20260410T140000
+SUMMARY:E-chalupy
+UID:c796937bdd725da1
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nschody
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20261219T140000
 DTEND:20261226T100000
-SUMMARY:Reserved
-UID:1418fb94e984-451bce4ed5c1abe69e37aa147093c78e@airbnb.com
 DTSTAMP:20260327T140000
+SUMMARY:Airbnb
+UID:c8a23f3ddfd52fe3
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nReservation URL: https
- ://www.airbnb.com/hosting/reservations/details/HM3RNRYM3Y\nPhone Number (L
- ast 4 Digits): 7270
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20261226T140000
 DTEND:20270103T100000
-SUMMARY:Wäre das Haus noch frei ?odeslal: Julia Quast\, telefon: 0162754344
- 9požadovaný termín: 28.12.2026-03.01.2027počet osob: 14 dospělých + 5 dětí
- e
-UID:18852-11548029@e-chalupy.cz
 DTSTAMP:20251007T140000
+SUMMARY:E-chalupy
+UID:bed046da25665575
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
-END:VEVENT
-BEGIN:VEVENT
-DTSTART:20270103T140000
-DTEND:20270110T100000
-SUMMARY:CLOSED - Not available
-UID:e9bc93206e53cb00904d8704bfa81f0e@booking.com
-DTSTAMP:20260720T140000
-STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270130T140000
 DTEND:20270206T100000
-SUMMARY:tanja německo
-UID:18852-13017851@e-chalupy.cz
 DTSTAMP:20260204T140000
+SUMMARY:E-chalupy
+UID:86125432395831dd
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270206T140000
 DTEND:20270213T100000
-SUMMARY:Reserved
-UID:1418fb94e984-41dd34042e29350aaa1b708981741e6b@airbnb.com
 DTSTAMP:20260327T140000
+SUMMARY:Airbnb
+UID:64cdae4a4d8804f0
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nReservation URL: https
- ://www.airbnb.com/hosting/reservations/details/HMYWWMCBPW\nPhone Number (L
- ast 4 Digits): 5307
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270220T140000
 DTEND:20270227T100000
-SUMMARY:mark kroeze 3015 EURo bez dalších poplatků - jenom městská taxa
-UID:18852-13010132@e-chalupy.cz
 DTSTAMP:20260203T140000
+SUMMARY:E-chalupy
+UID:19d51f88e4ed6e00
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270429T140000
 DTEND:20270502T100000
-SUMMARY:Reserved
-UID:1418fb94e984-dc2861185c4a57e1d77343d389391400@airbnb.com
 DTSTAMP:20260520T140000
+SUMMARY:Airbnb
+UID:c161e61dd8621520
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nReservation URL: https
- ://www.airbnb.com/hosting/reservations/details/HMHT5RFTHY\nPhone Number (L
- ast 4 Digits): 2012
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270505T140000
 DTEND:20270509T100000
-SUMMARY:andrea papritz - airbnb (nepropsalo se mi to sem)
-UID:18852-13892906@e-chalupy.cz
 DTSTAMP:20260428T140000
+SUMMARY:E-chalupy
+UID:5e11edb78d1fce7e
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 13\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270514T140000
 DTEND:20270518T100000
-SUMMARY:Reserved - Glen
-UID:bdff2eb7-88df-4995-b09a-006f108b9a9f
 DTSTAMP:20260305T140000
+SUMMARY:Fewo-direkt
+UID:975d284eb3cde10b
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
-END:VEVENT
-BEGIN:VEVENT
-DTSTART:20270522T140000
-DTEND:20270529T100000
-SUMMARY:CLOSED - Not available
-UID:f7af7461aac5070d1f21263c2715f6a5@booking.com
-DTSTAMP:20260720T140000
-STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270610T140000
 DTEND:20270613T100000
-SUMMARY:černá - už u nás byla 2x
-UID:18852-14776571@e-chalupy.cz
 DTSTAMP:20260622T140000
+SUMMARY:E-chalupy
+UID:4074ff4000b5af7f
 STATUS:CONFIRMED
-Description:Telefon: +420 777 110 061\nEmail: \nDospělí: 0\, děti 0\nDobrý 
- den\, paní Černá\,\n\ntak to mám opravdu radost. Gril vypadá skvěle a jsem
-  moc rád\, že jste s ním spokojená.\n\nTermín 10.–13. 6. 2027 Vám samozřej
- mě rád zarezervuji. Moc si vážím toho\, že se k nám chcete znovu vrátit.\n
- \nJen pro přehled posílám celkovou cenu podle aktuálního ceníku:\n\nUbytov
- ání za celý dům:\n3 noci × 11 900 Kč = 35 700 Kč\n\nÚklid/prádelna:\n3 500
-  Kč\n\nPejsek:\n500 Kč za pobyt\n\nPobytová taxa:\n6 dospělých osob × 3 no
- ci × 25 Kč = 450 Kč\n\nCelkem tedy vychází pobyt na 40 150 Kč.\n\nEnergie 
- jsou už v této ceně zahrnuté\, takže se zvlášť nedopočítávají.\n\nPokud je
-  to pro Vás takto v pořádku\, termín Vám mohu rovnou zarezervovat.\n\nMějt
- e se krásně\nPavel Kubizňák\n\n-----\n\nmají to bez papíru\, zatím nic nep
- latili\, výrazně jsem jim oproti roku 2026 navýšil cenu a stejně to vzali
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270617T140000
 DTEND:20270620T100000
-SUMMARY:Reserved
-UID:1418fb94e984-4b388dafdcfc3df63001fefb2613a0e5@airbnb.com
 DTSTAMP:20260709T140000
+SUMMARY:Airbnb
+UID:455b4901bb9ca591
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nReservation URL: https
- ://www.airbnb.com/hosting/reservations/details/HMFY5S2RZJ\nPhone Number (L
- ast 4 Digits): 9944
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20270703T140000
 DTEND:20270710T100000
-SUMMARY:Reserved
-UID:1418fb94e984-b5f89520536ae2f629e542b6729cc57f@airbnb.com
 DTSTAMP:20260703T140000
+SUMMARY:Airbnb
+UID:44f67225fb4ecfb9
 STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\nReservation URL: https
- ://www.airbnb.com/hosting/reservations/details/HMXTNRSSFC\nPhone Number (L
- ast 4 Digits): 2823
-END:VEVENT
-BEGIN:VEVENT
-DTSTART:20270712T140000
-DTEND:20270721T100000
-SUMMARY:CLOSED - Not available
-UID:ad004919183024d7a5e69b2c183c53b9@booking.com
-DTSTAMP:20260720T140000
-STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
-END:VEVENT
-BEGIN:VEVENT
-DTSTART:20270830T140000
-DTEND:20270905T100000
-SUMMARY:CLOSED - Not available
-UID:18c84aa88629d21718c72e754454569e@booking.com
-DTSTAMP:20260720T140000
-STATUS:CONFIRMED
-Description:Telefon: \nEmail: \nDospělí: 0\, děti 0\n
 END:VEVENT
 BEGIN:VEVENT
 DTSTART:20280525T140000
 DTEND:20280528T100000
-SUMMARY:Moritz BR
-UID:18852-14411474@e-chalupy.cz
 DTSTAMP:20260529T140000
+SUMMARY:E-chalupy
+UID:30fa80afc7c4aae6
 STATUS:CONFIRMED
-Description:Telefon: +4917684470476\nEmail: \nDospělí: 1\, děti 1\n21.5.202
- 6: \n\nHi Pavel\, that’s unfortunate but happy for you that the house is i
- n such high demand. \nAnd since it is can I book it for the 25.05 - 28.05.
- 2028 already. I know it’s two years away but like you said the house is in
-  hot demand \;) \n\nThe local tourist tax I will transfer later today. \n\
- nBR Moritz
 END:VEVENT
 END:VCALENDAR

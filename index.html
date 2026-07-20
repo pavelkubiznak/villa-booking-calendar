@@ -187,7 +187,7 @@
   <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
 </div>
-<p class="legend-note">Horní půlden = 🧹 odjezd ↑ 10:00 · Dolní půlden = příjezd ↓ 15:00 · Přejetím myší zobrazíš detail hosta</p>
+<p class="legend-note">Horní půlden = 🧹 odjezd ↑ 10:00 · Dolní půlden = příjezd ↓ 15:00 · Přejetím myší zobrazíš platformu rezervace</p>
 
 <!-- ── Add past booking panel ─────────────────────────────────────────── -->
 <div id="add-form" class="add-form-panel" style="display:none">
@@ -201,10 +201,6 @@
     <div class="form-field">
       <label>Check-out *</label>
       <input type="date" id="add-checkout">
-    </div>
-    <div class="form-field">
-      <label>Host</label>
-      <input type="text" id="add-guest" placeholder="např. Rodina Nováková">
     </div>
     <div class="form-field">
       <label>Platforma *</label>
@@ -278,11 +274,77 @@
 const CAL_URL = 'data/feed.ics';
 
 
-const CACHE_KEY   = 'villa_cal_v2';
-const HISTORY_KEY = 'villa_cal_history_v1';
+// Cache keys are versioned. v3 / v2 purge the older name-bearing caches: the public
+// data no longer carries guest names, so any locally cached copy from before must go.
+const CACHE_KEY   = 'villa_cal_v3';
+const HISTORY_KEY = 'villa_cal_history_v2';
 const REMOTE_HISTORY_URL = 'data/history.json';
 const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12' };
 const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
+const RESERVATION_LABEL = 'Rezervace';   // shown instead of the (now removed) guest name
+
+// One-off purge of pre-anonymization caches that could still hold guest names.
+try { localStorage.removeItem('villa_cal_v2'); } catch (_) {}
+try { localStorage.removeItem('villa_cal_history_v1'); } catch (_) {}
+
+// ── uidh hashing ───────────────────────────────────────────────────────────────
+// uidHash(uid) = first 16 hex chars of sha256(uid), IDENTICAL to the Python
+// update_history.py (utf-8 input, lowercase hex output). This is the merge key that
+// ties feed.ics / history.json / localStorage together without exposing the raw UID.
+function sha256hex(str) {
+  function rotr(n, x) { return (x >>> n) | (x << (32 - n)); }
+  const K = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const bytes = [];
+  for (let i = 0; i < str.length; i++) {
+    let c = str.charCodeAt(i);
+    if (c < 0x80) bytes.push(c);
+    else if (c < 0x800) { bytes.push(0xc0 | (c >> 6), 0x80 | (c & 0x3f)); }
+    else if (c >= 0xd800 && c <= 0xdbff) {
+      const c2 = str.charCodeAt(++i);
+      c = 0x10000 + ((c & 0x3ff) << 10) + (c2 & 0x3ff);
+      bytes.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 0x3f), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f));
+    } else { bytes.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f)); }
+  }
+  const l = bytes.length;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  const bitLen = l * 8;
+  bytes.push(0, 0, 0, 0, (bitLen >>> 24) & 0xff, (bitLen >>> 16) & 0xff, (bitLen >>> 8) & 0xff, bitLen & 0xff);
+  const w = new Array(64);
+  for (let i = 0; i < bytes.length; i += 64) {
+    for (let t = 0; t < 16; t++)
+      w[t] = (bytes[i+t*4] << 24) | (bytes[i+t*4+1] << 16) | (bytes[i+t*4+2] << 8) | (bytes[i+t*4+3]);
+    for (let t = 16; t < 64; t++) {
+      const s0 = rotr(7, w[t-15]) ^ rotr(18, w[t-15]) ^ (w[t-15] >>> 3);
+      const s1 = rotr(17, w[t-2]) ^ rotr(19, w[t-2]) ^ (w[t-2] >>> 10);
+      w[t] = (w[t-16] + s0 + w[t-7] + s1) | 0;
+    }
+    let a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for (let t = 0; t < 64; t++) {
+      const S1 = rotr(6, e) ^ rotr(11, e) ^ rotr(25, e);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[t] + w[t]) | 0;
+      const S0 = rotr(2, a) ^ rotr(13, a) ^ rotr(22, a);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H = [ (H[0]+a)|0,(H[1]+b)|0,(H[2]+c)|0,(H[3]+d)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+h)|0 ];
+  }
+  return H.map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
+}
+function uidHash(uid) { return sha256hex(String(uid)).slice(0, 16); }
+function is16hex(k) { return /^[0-9a-f]{16}$/.test(String(k)); }
+function platformOf(s) { return COL[s] ? s : 'E-chalupy'; }
 
 // Feed je snapshotovan Actionem do data/feed.ics kazde 3 h a cte se same-origin
 // z GitHub Pages — zadne CORS proxy, zadny klic feedu v HTML.
@@ -314,18 +376,17 @@ function loadHistory() {
 function mergeHistory(freshEvents) {
   const history = loadHistory();
 
-  // Add / overwrite with fresh data — SKIP Airbnb auto-blocking noise
-  freshEvents
-    .filter(ev => ev.guest !== 'Airbnb (Not available)')
-    .forEach(ev => {
-      history[ev.uid] = {
-        uid:      ev.uid,
-        startTs:  ev.start.getTime(),
-        endTs:    ev.end.getTime(),
-        guest:    ev.guest,
-        platform: ev.platform,
-      };
-    });
+  // Add / overwrite with fresh data. Events are already sanitized (no guest names);
+  // uid holds the uidh merge key (or a local "manual-…" id).
+  freshEvents.forEach(ev => {
+    if (!ev.uid) return;
+    history[ev.uid] = {
+      uid:      ev.uid,
+      startTs:  ev.start.getTime(),
+      endTs:    ev.end.getTime(),
+      platform: ev.platform,
+    };
+  });
 
   // Prune entries older than 18 months
   const cutoff = new Date();
@@ -341,14 +402,11 @@ function mergeHistory(freshEvents) {
 
 function historyToEvents(history) {
   return Object.values(history)
-    // Clean up any old "Airbnb (Not available)" entries that may be stored from before
-    .filter(h => h.guest !== 'Airbnb (Not available)')
     .map(h => ({
       uid:      h.uid,
       start:    new Date(h.startTs),
       end:      new Date(h.endTs),
-      guest:    h.guest,
-      platform: h.platform,
+      platform: platformOf(h.platform),
     }))
     .sort((a, b) => a.start - b.start);
 }
@@ -373,7 +431,8 @@ function parseICS(text) {
       const m = block.match(new RegExp('^' + key + '[^:]*:(.+)$', 'm'));
       return m ? m[1].trim() : '';
     };
-    const uid     = get('UID');
+    // feed.ics is now sanitized: UID line holds uidh, SUMMARY holds the platform name.
+    const uid     = get('UID');           // = uidh (16-hex) in the sanitized feed
     const summary = get('SUMMARY');
     const dtstart = get('DTSTART');
     const dtend   = get('DTEND');
@@ -383,18 +442,8 @@ function parseICS(text) {
     const start = icsToDate(dtstart);
     const end   = icsToDate(dtend);
     if (!start || !end || end < cutoff) return;
-    let platform = 'E-chalupy';
-    if (uid.includes('@airbnb.com'))      platform = 'Airbnb';
-    else if (uid.includes('@booking.com')) platform = 'Booking.com';
-    else if (!uid.includes('@'))           platform = 'Fewo-direkt';
-    let guest = summary || '(reserved)';
-    if (guest.toUpperCase() === 'RESERVED') guest = 'Reserved';
-    if (guest.startsWith('CLOSED'))         guest = '(Booking guest)';
-    // ── SKIP Airbnb auto-blocking noise ───────────────────────────────────────
-    // Airbnb fills every free day with a 1-day "Airbnb (Not available)" event.
-    // These are NOT real bookings — they clutter the calendar.
-    if (guest === 'Airbnb (Not available)') return;
-    events.push({ uid, start, end, guest, platform });
+    const platform = platformOf(summary);
+    events.push({ uid, start, end, platform });
   });
   return events.sort((a, b) => a.start - b.start);
 }
@@ -514,9 +563,9 @@ function renderCalendar(bookings) {
           `<div class="half-pm${pmDark}" style="${pmSty}">${pmTime}</div>` +
           `</div>`;
 
-        if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${h.outGuest.guest} (${h.outGuest.platform}) ↑ 10:00`);
-        if (h.stayGuest) tipLines.push(`${h.stayGuest.guest} (${h.stayGuest.platform})`);
-        if (h.inGuest)   tipLines.push(`✔️ Příjezd: ${h.inGuest.guest} (${h.inGuest.platform}) ↓ 15:00`);
+        if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${h.outGuest.platform} ↑ 10:00`);
+        if (h.stayGuest) tipLines.push(`${RESERVATION_LABEL} · ${h.stayGuest.platform}`);
+        if (h.inGuest)   tipLines.push(`✔️ Příjezd: ${h.inGuest.platform} ↓ 15:00`);
       }
 
       const tip = tipLines.length ? `<div class="tip">${tipLines.join('<br>')}</div>` : '';
@@ -585,7 +634,7 @@ function renderTable(bookings, today) {
         <td style="color:#B0BEC5">${i+1}</td>
         <td><strong>${fmtD(b.start)}</strong></td>
         <td>${fmtD(b.end)}</td>
-        <td>${b.guest}</td>
+        <td style="color:#95A5A6">${RESERVATION_LABEL}</td>
         <td style="text-align:center;font-weight:700">${n}</td>
         <td><span class="badge" style="background:${LIGHT[b.platform]};color:${COL[b.platform]}">${b.platform}</span></td>`;
       tb.appendChild(tr);
@@ -628,7 +677,6 @@ function toggleAddForm() {
 function addManualBooking() {
   const checkin  = document.getElementById('add-checkin').value;
   const checkout = document.getElementById('add-checkout').value;
-  const guestVal = document.getElementById('add-guest').value.trim();
   const platform = document.getElementById('add-platform').value;
   const msgEl    = document.getElementById('add-msg');
 
@@ -647,17 +695,15 @@ function addManualBooking() {
     msgEl.textContent = '⚠️ Check-out musí být po check-inu.';
     return;
   }
-  const guest = guestVal || '(ruční záznam)';
   const uid   = `manual-${cy}${String(cm).padStart(2,'0')}${String(cd).padStart(2,'0')}-${Math.random().toString(36).slice(2,8)}`;
-  mergeHistory([{ uid, start, end, guest, platform }]);
+  mergeHistory([{ uid, start, end, platform }]);
   renderCalendar(getAllFromHistory());
   refreshHistoryPanel();
   const nights = Math.round((end - start) / 86400000);
   msgEl.style.color = '#1E8449';
-  msgEl.textContent = `✅ Uloženo — ${fmtD(start)} → ${fmtD(end)}, ${nights} nocí, ${guest}, ${platform}`;
+  msgEl.textContent = `✅ Uloženo — ${fmtD(start)} → ${fmtD(end)}, ${nights} nocí, ${platform}`;
   document.getElementById('add-checkin').value  = '';
   document.getElementById('add-checkout').value = '';
-  document.getElementById('add-guest').value    = '';
   document.getElementById('add-checkin').focus();
 }
 
@@ -679,7 +725,7 @@ function refreshHistoryPanel() {
     div.innerHTML  = `
       <span>
         <span class="badge ${isManual?'manual-badge':''}" style="${isManual?'':'background:'+LIGHT[b.platform]+';color:'+COL[b.platform]}">${isManual?'✏️ ruční':b.platform}</span>
-        &nbsp;<strong>${fmtD(b.start)}</strong> → ${fmtD(b.end)} &nbsp;·&nbsp; ${nights}n &nbsp;·&nbsp; ${b.guest}
+        &nbsp;<strong>${fmtD(b.start)}</strong> → ${fmtD(b.end)} &nbsp;·&nbsp; ${nights}n &nbsp;·&nbsp; ${isManual ? RESERVATION_LABEL + ' (ruční)' : RESERVATION_LABEL}
       </span>
       ${isManual ? `<button class="del-btn" onclick="deleteEntry('${b.uid.replace(/'/g,"\\'")}')">✕ smazat</button>` : ''}`;
     items.appendChild(div);
@@ -705,8 +751,8 @@ function clearManualBookings() {
 
 function clearAllAndRefresh() {
   if (!confirm('Smaže veškerá uložená data (včetně celé historie) a načte znovu ze živého feedu.\n\nRuční záznamy budou ztraceny — nejprve je exportujte.\n\nPokračovat?')) return;
-  try { localStorage.removeItem('villa_cal_v2'); } catch(_) {}
-  try { localStorage.removeItem('villa_cal_history_v1'); } catch(_) {}
+  try { localStorage.removeItem(CACHE_KEY); } catch(_) {}
+  try { localStorage.removeItem(HISTORY_KEY); } catch(_) {}
   location.reload();
 }
 
@@ -716,9 +762,8 @@ function exportHistory() {
     checkin:  b.start.toISOString().slice(0,10),
     checkout: b.end.toISOString().slice(0,10),
     nights:   Math.round((b.end - b.start) / 86400000),
-    guest:    b.guest,
     platform: b.platform,
-    uid:      b.uid,
+    uidh:     b.uid,
   }));
   const blob = new Blob([JSON.stringify(rows, null, 2)], { type:'application/json' });
   const a    = document.createElement('a');
@@ -746,16 +791,15 @@ async function fetchAndMergeRemoteHistory() {
     if (!res.ok) return 0;
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) return 0;
+    // Sanitized schema: { uidh, start, end, platform } — no guest field.
+    // (Tolerate a legacy raw uid by hashing it, so a stale file still merges cleanly.)
     const events = data.map(e => ({
-      uid:      e.uid,
+      uid:      e.uidh || (e.uid ? uidHash(e.uid) : ''),
       start:    new Date(e.start + 'T00:00:00'),
       end:      new Date(e.end   + 'T00:00:00'),
-      guest:    e.guest,
-      platform: e.platform,
+      platform: platformOf(e.platform),
     }))
-    .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end))
-    // ── SKIP Airbnb noise from stored history.json ───────────────────────────
-    .filter(e => e.guest !== 'Airbnb (Not available)');
+    .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
 
     if (events.length === 0) return 0;
     mergeHistory(events);
