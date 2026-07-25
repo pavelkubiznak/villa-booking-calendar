@@ -500,7 +500,8 @@ function renderCalendar(bookings) {
 
   // ── FIX 2: Start from CURRENT month (was -6 months) ──────────────────────
   let cur  = new Date(now.getFullYear(), now.getMonth(), 1);
-  const stop = new Date(now.getFullYear(), now.getMonth() + 14, 0);
+  // Okno vzdy pokryva aspon +2 roky od dneska (aktualni mesic + 24 mesicu dopredu)
+  const stop = new Date(now.getFullYear(), now.getMonth() + 25, 0);
 
   const mc = document.getElementById('months');
   mc.innerHTML = '';
