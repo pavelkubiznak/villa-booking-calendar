@@ -46,6 +46,7 @@
   .month-header { background: #2C3E50; color: #fff; padding: 9px 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
   .month-header.current { background: linear-gradient(135deg, #1565C0 0%, #1976D2 100%); }
   .current-badge { font-size: 9px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; background: rgba(255,255,255,0.22); padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+  .mh-occ { font-size: 10px; font-weight: 700; background: rgba(255,255,255,0.16); padding: 2px 7px; border-radius: 9px; flex-shrink: 0; white-space: nowrap; }
   .day-names { display: grid; grid-template-columns: repeat(7, 1fr); }
   .day-name { text-align: center; font-size: 9px; font-weight: 700; color: #B0BEC5; padding: 5px 0 4px; text-transform: uppercase; }
   .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
@@ -518,9 +519,16 @@ function renderCalendar(bookings) {
     const card = document.createElement('div');
     card.className = 'month-card';
     card.id = cardId;
+    // Obsazenost mesice po nocich: noc zacinajici dnem d je obsazena, kdyz start <= d < end
+    let occNights = 0;
+    for (let d = 1; d <= dim; d++) {
+      const nd = new Date(y, m, d);
+      if (bookings.some(b => b.start <= nd && nd < b.end)) occNights++;
+    }
+    const occHtml = `<span class="mh-occ">${occNights}/${dim} · ${Math.round(occNights / dim * 100)} %</span>`;
     const headerContent = isCurrent
-      ? `${MONTHS[m]} ${y} <span class="current-badge">aktuální</span>`
-      : `${MONTHS[m]} ${y}`;
+      ? `<span>${MONTHS[m]} ${y} <span class="current-badge">aktuální</span></span>${occHtml}`
+      : `<span>${MONTHS[m]} ${y}</span>${occHtml}`;
     card.innerHTML = `
       <div class="month-header ${isCurrent ? 'current' : ''}">${headerContent}</div>
       <div class="day-names">${DAYS.map(n=>`<div class="day-name">${n}</div>`).join('')}</div>
