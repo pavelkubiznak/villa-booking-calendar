@@ -13,13 +13,30 @@ feed, the archive and the clients' localStorage, yet cannot be reversed to the
 platform reservation number. The exact same hashing is implemented in index.html and
 owner.html (JS) — keep the three in lock-step.
 
-history.json entries:  { "uidh", "start", "end", "platform" }   (sorted by start)
+history.json entries:  { "uidh", "start", "end", "platform",
+                         "firstSeen", "lastSeen", "stale" }      (sorted by start)
 feed.ics VEVENTs:      SUMMARY = platform, UID = uidh, only DTSTART/DTEND/DTSTAMP/STATUS
                         (Description / Attendee / Organizer / any name-bearing field dropped)
+
+STALE / "GHOST" TRACKING (added 2026-08):
+The archive is upsert-only — an entry is never deleted just because it vanished from the
+feed, it is only pruned 18 months after its `end`. That is deliberate (the upstream hub is
+lossy, see below), but it means expired holds, cancelled bookings and reservations that were
+edited (edit => new UID => old entry orphaned) linger and show up as phantom overlaps.
+
+So instead of deleting we MARK:
+    firstSeen  first run date this uidh appeared in the feed
+    lastSeen   last run date it appeared   (None = never seen since tracking began)
+    stale      True once lastSeen is older than STALE_AFTER_DAYS (or unknown)
+
+Why not just drop stale entries: e-chalupy (the hub feed) REFUSES to store a reservation that
+overlaps one it already has, so a genuine double booking is silently missing from the feed —
+the archived copy is then the only evidence it exists. Dropping stale entries would delete
+exactly the records worth looking at. Hence: keep, flag, and let the UI show them differently.
 """
 
 import json, re, sys, hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.request import urlopen, Request
 
 ICAL_URL     = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'
@@ -27,6 +44,10 @@ HISTORY_FILE = 'data/history.json'
 FEED_FILE    = 'data/feed.ics'
 
 PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt')
+
+# The Action runs every ~3 h. Two days of grace means a transient outage (or a few
+# failed runs in a row) never flips a live booking to "stale" by accident.
+STALE_AFTER_DAYS = 2
 
 
 def uid_hash(uid):
@@ -111,10 +132,24 @@ def build_feed(events):
     return '\r\n'.join(lines) + '\r\n'
 
 
+def is_stale(last_seen, today):
+    """An entry is stale once the feed stopped listing it (or never did).
+    last_seen is None for entries that predate stale-tracking and are not in the
+    current feed — we genuinely do not know when they were last real, so: stale."""
+    if not last_seen:
+        return True
+    d = ics_to_date(last_seen.replace('-', ''))
+    if not d:
+        return True
+    return (today - d).days > STALE_AFTER_DAYS
+
+
 def load_history():
     """Read the existing history.json, accepting BOTH schemas:
-      - new: {uidh, start, end, platform}
+      - new: {uidh, start, end, platform, firstSeen, lastSeen, stale}
       - old: {uid, guest, start, end, platform}  → migrated (uid hashed, guest dropped)
+    firstSeen/lastSeen are preserved when present; absent lastSeen stays absent so the
+    first run after this change honestly reports "never seen since tracking began".
     Returns a dict keyed by uidh."""
     try:
         with open(HISTORY_FILE) as f:
@@ -137,8 +172,43 @@ def load_history():
         plat = e.get('platform')
         if plat not in PLATFORMS:
             plat = 'E-chalupy'
-        history[uidh] = {'uidh': uidh, 'start': e['start'], 'end': e['end'], 'platform': plat}
+        history[uidh] = {'uidh': uidh, 'start': e['start'], 'end': e['end'], 'platform': plat,
+                         'firstSeen': e.get('firstSeen'), 'lastSeen': e.get('lastSeen')}
     return history
+
+
+def report_overlaps(entries, today_s):
+    """Log overlapping stays so the Action run itself flags double bookings.
+
+    Stays are half-open [start, end) — `end` is the checkout day, so two stays only
+    really clash when one starts before the other ends. Only stays that have not
+    finished yet are worth reporting.
+
+    A pair of LIVE entries is a genuine double booking. A pair where either side is
+    stale is most likely archive residue — but not always: a real booking can be
+    missing from the feed because the hub refused to import it over an existing
+    overlap, which is precisely why these are surfaced rather than hidden.
+    """
+    fut = [e for e in entries if e['end'] >= today_s]
+    real, suspect = [], []
+    for i, a in enumerate(fut):
+        for b in fut[i + 1:]:
+            if a['start'] < b['end'] and b['start'] < a['end']:
+                (real if not (a['stale'] or b['stale']) else suspect).append((a, b))
+
+    def line(a, b):
+        f = lambda e: (f"{e['start']}→{e['end']} {e['platform']}"
+                       f"{' [stale]' if e['stale'] else ''}")
+        return f'    {f(a)}  ×  {f(b)}'
+
+    if real:
+        print(f'::warning::{len(real)} REAL double booking(s) — both sides live in the feed')
+        for a, b in real: print(line(a, b))
+    if suspect:
+        print(f'{len(suspect)} overlap(s) involving a stale entry (verify in the extranet):')
+        for a, b in suspect: print(line(a, b))
+    if not real and not suspect:
+        print('No overlapping future stays.')
 
 
 def main():
@@ -166,24 +236,43 @@ def main():
         f.write(build_feed(events))
     print(f'Sanitized feed snapshot written to {FEED_FILE}')
 
+    now   = datetime.now()
+    today = datetime(now.year, now.month, now.day)
+    today_s = today.strftime('%Y-%m-%d')
+
+    # Anything in this run's feed is alive NOW: stamp lastSeen, keep the original firstSeen.
+    # Anything absent keeps its old stamps and ages into `stale` on its own.
     new = sum(1 for e in events if e['uidh'] not in history)
     for e in events:
-        history[e['uidh']] = {'uidh': e['uidh'], 'start': e['start'],
-                              'end': e['end'], 'platform': e['platform']}
+        prev = history.get(e['uidh'], {})
+        history[e['uidh']] = {
+            'uidh':      e['uidh'],
+            'start':     e['start'],
+            'end':       e['end'],
+            'platform':  e['platform'],
+            'firstSeen': prev.get('firstSeen') or today_s,
+            'lastSeen':  today_s,
+        }
     print(f'New: {new}, total: {len(history)}')
 
     # Prune older than 18 months
-    now = datetime.now()
     m, y = now.month - 18, now.year
     while m <= 0: m += 12; y -= 1
     cutoff = f'{y:04d}-{m:02d}-01'
     history = {k: e for k, e in history.items() if e['end'] >= cutoff}
     print(f'After 18-month prune (cutoff {cutoff}): {len(history)} entries')
 
+    for e in history.values():
+        e['stale'] = is_stale(e.get('lastSeen'), today)
+
     output = sorted(history.values(), key=lambda e: e['start'])
     with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
-    print(f'Written {len(output)} entries to {HISTORY_FILE}')
+
+    stale_n = sum(1 for e in output if e['stale'])
+    print(f'Written {len(output)} entries to {HISTORY_FILE} '
+          f'({len(output) - stale_n} live, {stale_n} stale)')
+    report_overlaps(output, today_s)
 
 
 if __name__ == '__main__':

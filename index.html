@@ -41,6 +41,21 @@
   .legend-swatch { width: 28px; height: 14px; border-radius: 4px; }
   .legend-note { font-size: 11px; color: #95A5A6; margin-bottom: 20px; }
 
+  /* Souhrn překryvů nad kalendářem — odkaz skočí na dotčený měsíc */
+  .conflict-banner { display: none; background: #FDEDEC; border: 1px solid #E6B0AA; border-left: 4px solid #C0392B; border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; }
+  .conflict-banner h3 { font-size: 13px; font-weight: 800; color: #943126; margin-bottom: 4px; }
+  .conflict-banner h3.cb-soft { color: #A04000; margin-top: 14px; }
+  .conflict-banner .cb-hint { font-size: 11px; color: #A04000; margin-bottom: 9px; }
+  /* Jen podezřelé překryvy (žádný živý) — celý banner ztlumit do oranžové. */
+  .conflict-banner.soft { background: #FEF5E7; border-color: #F0D9B5; border-left-color: #C47B1A; }
+  .cb-list { display: flex; flex-direction: column; gap: 6px; }
+  .cb-row { font-size: 12px; color: #7B241C; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+  .cb-row a { color: #C0392B; font-weight: 700; text-decoration: underline; cursor: pointer; white-space: nowrap; }
+  .cb-plat { font-weight: 700; }
+  .month-card.flash { animation: cbflash 1.8s ease-out 1; }
+  @keyframes cbflash { 0%, 100% { box-shadow: 0 1px 6px rgba(0,0,0,0.09); } 25% { box-shadow: 0 0 0 3px #C0392B; } }
+  @media (prefers-reduced-motion: reduce) { .month-card.flash { animation: none; } }
+
   .months { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
   .month-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,0.09); overflow: hidden; }
   .month-header { background: #2C3E50; color: #fff; padding: 9px 14px; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
@@ -66,6 +81,17 @@
   .day-cell.empty .day-num { color: transparent; }
   .day-cell.today { background: #E3F2FD; outline: 2px solid #1565C0; outline-offset: -2px; }
   .day-cell.today .day-num { color: #1565C0; font-weight: 800; }
+
+  /* Překryv rezervací — v půldni sedí víc než jedna rezervace.
+     Musí být vidět na první pohled, proto červený rámeček + ⚠ u čísla dne.
+     Pravidlo je za .today schválně: na dnešku má přednost překryv. */
+  .day-cell.conflict { outline: 2px solid #C0392B; outline-offset: -2px; z-index: 3; }
+  .day-cell.conflict .day-num { color: #C0392B; font-weight: 800; }
+  .day-cell.conflict .day-num::after { content: '⚠'; font-size: 8px; vertical-align: super; margin-left: 1px; }
+  /* Překryv, kde je aspoň jedna strana duch — jen k ověření, ne poplach. */
+  .day-cell.conflict-soft { outline: 2px dashed #C47B1A; outline-offset: -2px; z-index: 2; }
+  .day-cell.conflict-soft .day-num { color: #A04000; font-weight: 800; }
+  .day-cell.conflict-soft .day-num::after { content: '?'; font-size: 8px; vertical-align: super; margin-left: 1px; }
 
   /* Half-day split — top = checkout (↑ morning), bottom = checkin (↓ afternoon) */
   .cell-halves { display: flex; flex-direction: column; flex: 1; min-height: 22px; }
@@ -94,6 +120,14 @@
   }
   /* Fewo orange — use dark text for legibility */
   .half-am.dark-txt, .half-pm.dark-txt { color: rgba(100, 65, 0, 0.9); }
+  /* Šrafovaný půlden (překryv) — čas potřebuje obrys, pruhy jsou pod ním pestré */
+  .half-am.clash, .half-pm.clash { color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.95); }
+  /* Duch (vypadl z feedu) — světlé pozadí platformy, tečkovaný obrys, tmavý text.
+     Musí být za .clash i .dark-txt, aby při shodné specificitě vyhrálo. */
+  .half-am.ghost, .half-pm.ghost {
+    color: rgba(0,0,0,0.5); text-shadow: none;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+  }
 
   /* Tooltip */
   .day-cell:hover .tip { display: block; }
@@ -188,7 +222,10 @@
   <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
 </div>
-<p class="legend-note">Horní půlden = 🧹 odjezd ↑ 10:00 · Dolní půlden = příjezd ↓ 15:00 · Přejetím myší zobrazíš platformu rezervace</p>
+<p class="legend-note">Horní půlden = 🧹 odjezd ↑ 10:00 · Dolní půlden = příjezd ↓ 15:00 · Šrafovaný půlden = ⚠ překryv · Světlý s tečkovaným obrysem = záznam už není v živém feedu · Přejetím myší zobrazíš platformu rezervace</p>
+
+<!-- ── Souhrn překryvů rezervací (skryté, dokud žádné nejsou) ──────────── -->
+<div id="conflict-banner" class="conflict-banner"></div>
 
 <!-- ── Add past booking panel ─────────────────────────────────────────── -->
 <div id="add-form" class="add-form-panel" style="display:none">
@@ -386,6 +423,7 @@ function mergeHistory(freshEvents) {
       startTs:  ev.start.getTime(),
       endTs:    ev.end.getTime(),
       platform: ev.platform,
+      stale:    !!ev.stale,
     };
   });
 
@@ -408,6 +446,8 @@ function historyToEvents(history) {
       start:    new Date(h.startTs),
       end:      new Date(h.endTs),
       platform: platformOf(h.platform),
+      // Ručně zadaný pobyt ve feedu nikdy nebude — nesmí kvůli tomu zestárnout na ducha.
+      stale:    !!h.stale && !String(h.uid || '').startsWith('manual-'),
     }))
     .sort((a, b) => a.start - b.start);
 }
@@ -444,7 +484,9 @@ function parseICS(text) {
     const end   = icsToDate(dtend);
     if (!start || !end || end < cutoff) return;
     const platform = platformOf(summary);
-    events.push({ uid, start, end, platform });
+    // Cokoli je v aktuálním feed.ics, je právě teď živé — přebije případný stale
+    // příznak z archivu (mergeHistory(fresh) běží až po merge history.json).
+    events.push({ uid, start, end, platform, stale: false });
   });
   return events.sort((a, b) => a.start - b.start);
 }
@@ -467,27 +509,143 @@ function fmtMonth(d) {
 }
 
 // ── Half-day logic ────────────────────────────────────────────────────────────
-// Returns which booking occupies each half of a day cell.
-// am = morning (checkout ↑ 10:00 or mid-stay)
-// pm = afternoon (checkin ↓ 15:00 or mid-stay)
+// Vrací, co obsazuje každou polovinu dne. Každá polovina je POLE, ne jedna
+// rezervace: při překryvu tu sedí víc pobytů najednou a dřív poslední v pořadí
+// ty předchozí přepsal — dvojitá rezervace pak v UI vypadala jako běžný pobyt.
+// am = ráno (odjezd ↑ 10:00 nebo probíhající pobyt)
+// pm = odpoledne (příjezd ↓ 15:00 nebo probíhající pobyt)
 function getDayHalves(y, m, d, bookings) {
   const dt = new Date(y, m, d);
-  let amB = null, pmB = null, midB = null;
+  const outs = [], ins = [], mids = [];
   bookings.forEach(b => {
-    if (sd(dt, b.end))              amB  = b;  // checking OUT this morning
-    if (sd(dt, b.start))            pmB  = b;  // checking IN this afternoon
-    if (dt > b.start && dt < b.end) midB = b;  // mid-stay (full day)
+    if (sd(dt, b.end))              outs.push(b);  // checking OUT this morning
+    if (sd(dt, b.start))            ins.push(b);   // checking IN this afternoon
+    if (dt > b.start && dt < b.end) mids.push(b);  // mid-stay (full day)
   });
+  // Ráno drží odjíždějící i toho, kdo zůstává; odpoledne přijíždějící i zůstávajícího.
+  // Odjezd/příjezd je první → zůstává primární barvou půldne jako dřív.
+  const am = outs.concat(mids);
+  const pm = ins.concat(mids);
+  const all = [];
+  outs.concat(ins, mids).forEach(b => { if (all.indexOf(b) < 0) all.push(b); });
   return {
-    am:         amB || midB,   // morning half
-    pm:         pmB || midB,   // afternoon half
-    isCheckout: !!amB,
-    isCheckin:  !!pmB,
-    outGuest:   amB,
-    inGuest:    pmB,
-    stayGuest:  midB,
-    any:        !!(amB || pmB || midB),
+    amAll:      am,            // vše, co obsazuje ranní půlden
+    pmAll:      pm,            // vše, co obsazuje odpolední půlden
+    all:        all,           // všechny rezervace dotýkající se dne (bez duplicit)
+    am:         am[0] || null, // primární rezervace půldne (barva, popisek)
+    pm:         pm[0] || null,
+    isCheckout: outs.length > 0,
+    isCheckin:  ins.length  > 0,
+    outGuest:   outs[0] || null,
+    inGuest:    ins[0]  || null,
+    stayGuest:  mids[0] || null,
+    conflict:   am.length > 1 || pm.length > 1,
+    // Skutečný poplach je jen překryv DVOU ŽIVÝCH pobytů. Je-li aspoň jedna strana
+    // duch (vypadl z feedu), je to skoro jistě zbytek archivu — jiná barva, ne červená.
+    conflictReal: am.filter(b => !b.stale).length > 1 || pm.filter(b => !b.stale).length > 1,
+    hasGhost:   all.some(b => b.stale),
+    any:        !!(am.length || pm.length),
   };
+}
+
+// Pozadí půldne: jedna rezervace = plná barva platformy, víc = šikmé pruhy barev
+// všech kolidujících platforem oddělené tmavě červenou. Oddělovač je tam kvůli
+// překryvu dvou pobytů ze STEJNÉ platformy — bez něj by pruhy splynuly v plnou barvu.
+function halfStyle(list) {
+  if (!list.length) return '';
+  // Duch se kreslí světlou variantou barvy platformy — pořád poznáš, odkud je,
+  // ale na první pohled nevypadá jako potvrzená obsazenost.
+  const colOf = b => b.stale ? (LIGHT[b.platform] || '#ECEFF1') : (COL[b.platform] || '#B0BEC5');
+  if (list.length === 1) return `background:${colOf(list[0])}`;
+  const stops = [];
+  list.forEach((b, i) => {
+    const c = colOf(b);
+    const o = i * 10;
+    stops.push(`${c} ${o}px, ${c} ${o + 7}px`, `#7B241C ${o + 7}px, #7B241C ${o + 10}px`);
+  });
+  return `background:repeating-linear-gradient(45deg, ${stops.join(', ')})`;
+}
+
+// ── Překryvy rezervací ────────────────────────────────────────────────────────
+// Dvojice pobytů s a.start < b.end && b.start < a.end — intervaly [start,end),
+// takže den odjezdu = den příjezdu NENÍ překryv. Stejná konvence jako hlídač
+// VrConflictWatch v n8n, ať si obě místa neprotiřečí.
+function findOverlaps(bookings) {
+  const out = [];
+  for (let i = 0; i < bookings.length; i++) {
+    for (let j = i + 1; j < bookings.length; j++) {
+      const a = bookings[i], b = bookings[j];
+      if (a.uid && b.uid && a.uid === b.uid) continue;
+      if (!(a.start < b.end && b.start < a.end)) continue;
+      out.push({
+        a: a, b: b,
+        start: a.start > b.start ? a.start : b.start,
+        end:   a.end   < b.end   ? a.end   : b.end,
+        real:  !a.stale && !b.stale,   // obě strany živé = opravdu dvojitá rezervace
+      });
+    }
+  }
+  return out.sort((x, y) => x.start - y.start);
+}
+
+// Ruční pobyt se v soupisu překryvů označí — může jít o vlastní duplikát feedu.
+function bLabel(b) {
+  return (b.uid && b.uid.startsWith('manual-')) ? `${b.platform} (ruční)` : b.platform;
+}
+// Duch = záznam, který už není v živém feedu (propadlá předrezervace, zrušený pobyt,
+// nebo upravená rezervace, které se změnilo UID). V archivu zůstává schválně.
+function ghostNote(b) { return b.stale ? ' ⟨není ve feedu⟩' : ''; }
+function pluralOverlap(n) {
+  return n === 1 ? 'překryv' : (n >= 2 && n <= 4 ? 'překryvy' : 'překryvů');
+}
+
+function renderConflictBanner(overlaps) {
+  const box = document.getElementById('conflict-banner');
+  if (!box) return;
+  if (!overlaps.length) {
+    box.style.display = 'none'; box.innerHTML = ''; box.className = 'conflict-banner'; return;
+  }
+  // Překryv dvou živých pobytů = skutečná dvojitá rezervace (červeně).
+  // Překryv, kde aspoň jedna strana vypadla z feedu = nejspíš zbytek archivu (oranžově).
+  const real    = overlaps.filter(o => o.real);
+  const suspect = overlaps.filter(o => !o.real);
+
+  const row = o => {
+    const id = `month-${o.start.getFullYear()}-${o.start.getMonth()}`;
+    return `<div class="cb-row">` +
+      `<a onclick="jumpToMonth('${id}')">${fmtD(o.start)} → ${fmtD(o.end)}</a>` +
+      `<span><span class="cb-plat">${bLabel(o.a)}</span>${ghostNote(o.a)} ${fmtD(o.a.start)} → ${fmtD(o.a.end)}` +
+      ` &nbsp;×&nbsp; <span class="cb-plat">${bLabel(o.b)}</span>${ghostNote(o.b)} ${fmtD(o.b.start)} → ${fmtD(o.b.end)}</span>` +
+      `</div>`;
+  };
+
+  let html = '';
+  if (real.length) {
+    html += `<h3>⚠️ ${real.length} ${pluralOverlap(real.length)} rezervací</h3>` +
+      `<p class="cb-hint">Dva pobyty na stejný termín a oba jsou právě teď v živém feedu. ` +
+      `Tohle je potřeba řešit na platformách.</p>` +
+      `<div class="cb-list">${real.map(row).join('')}</div>`;
+  }
+  if (suspect.length) {
+    html += `<h3 class="cb-soft">❓ ${suspect.length} ${pluralOverlap(suspect.length)} se starým záznamem</h3>` +
+      `<p class="cb-hint">Aspoň jedna strana už v živém feedu není — typicky propadlá předrezervace, ` +
+      `zrušený nebo přeuložený pobyt. Většinou planý poplach. Mazat se ale nesmí: hub odmítá ` +
+      `importovat rezervaci přes existující překryv, takže i platná rezervace může z feedu zmizet. ` +
+      `Ověřte v extranetu platformy.</p>` +
+      `<div class="cb-list">${suspect.map(row).join('')}</div>`;
+  }
+  box.innerHTML = html;
+  box.className = 'conflict-banner' + (real.length ? '' : ' soft');
+  box.style.display = 'block';
+}
+
+function jumpToMonth(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  el.classList.remove('flash');
+  void el.offsetWidth;   // restart animace, když se klikne na stejný měsíc znovu
+  el.classList.add('flash');
 }
 
 // ── Calendar renderer ─────────────────────────────────────────────────────────
@@ -550,31 +708,41 @@ function renderCalendar(bookings) {
       const cell   = document.createElement('div');
       const dt     = new Date(y, m, d);
       const isToday = sd(dt, today);
-      cell.className = 'day-cell' + (isToday ? ' today' : '');
 
       // ── FIX 4: Half-day split rendering ──────────────────────────────────
       const h = getDayHalves(y, m, d, bookings);
+      cell.className = 'day-cell' + (isToday ? ' today' : '') +
+        (h.conflictReal ? ' conflict' : (h.conflict ? ' conflict-soft' : ''));
       const tipLines = [];
       let halvesHtml = '<div class="cell-halves"></div>';
 
       if (h.any) {
-        const amCol    = h.am ? COL[h.am.platform] : '';
-        const pmCol    = h.pm ? COL[h.pm.platform] : '';
-        const amSty    = amCol ? `background:${amCol}` : '';
-        const pmSty    = pmCol ? `background:${pmCol}` : '';
-        const amDark   = h.am?.platform === 'Fewo-direkt' ? ' dark-txt' : '';
-        const pmDark   = h.pm?.platform === 'Fewo-direkt' ? ' dark-txt' : '';
+        // šrafování má přednost před dark-txt: přes pruhy je čitelný jen obrys
+        // ghost (celý půlden jen z duchů) přebíjí obojí — světlé pozadí chce tmavý text
+        const ghostCls = list => (list.length && list.every(b => b.stale)) ? ' ghost' : '';
+        const amCls    = (h.amAll.length > 1 ? ' clash' : (h.am?.platform === 'Fewo-direkt' ? ' dark-txt' : '')) + ghostCls(h.amAll);
+        const pmCls    = (h.pmAll.length > 1 ? ' clash' : (h.pm?.platform === 'Fewo-direkt' ? ' dark-txt' : '')) + ghostCls(h.pmAll);
         const amTime   = h.isCheckout ? '↑10' : '';
         const pmTime   = h.isCheckin  ? '↓15' : '';
 
         halvesHtml = `<div class="cell-halves">` +
-          `<div class="half-am${amDark}" style="${amSty}">${amTime}</div>` +
-          `<div class="half-pm${pmDark}" style="${pmSty}">${pmTime}</div>` +
+          `<div class="half-am${amCls}" style="${halfStyle(h.amAll)}">${amTime}</div>` +
+          `<div class="half-pm${pmCls}" style="${halfStyle(h.pmAll)}">${pmTime}</div>` +
           `</div>`;
 
-        if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${h.outGuest.platform} ↑ 10:00`);
-        if (h.stayGuest) tipLines.push(`${RESERVATION_LABEL} · ${h.stayGuest.platform}`);
-        if (h.inGuest)   tipLines.push(`✔️ Příjezd: ${h.inGuest.platform} ↓ 15:00`);
+        if (h.conflict) {
+          // u překryvu vypsat VŠECHNY dotčené pobyty, ne jen ten poslední
+          tipLines.push(h.conflictReal
+            ? `⚠️ PŘEKRYV — ${h.all.length} rezervace na tento den:`
+            : `❓ Překryv se starým záznamem — ${h.all.length} rezervace:`);
+          h.all.forEach(b => tipLines.push(`• ${bLabel(b)}${ghostNote(b)}: ${fmtD(b.start)} → ${fmtD(b.end)}`));
+        } else if (h.hasGhost) {
+          h.all.forEach(b => tipLines.push(`${bLabel(b)}${ghostNote(b)}: ${fmtD(b.start)} → ${fmtD(b.end)}`));
+        } else {
+          if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${h.outGuest.platform} ↑ 10:00`);
+          if (h.stayGuest) tipLines.push(`${RESERVATION_LABEL} · ${h.stayGuest.platform}`);
+          if (h.inGuest)   tipLines.push(`✔️ Příjezd: ${h.inGuest.platform} ↓ 15:00`);
+        }
       }
 
       const tip = tipLines.length ? `<div class="tip">${tipLines.join('<br>')}</div>` : '';
@@ -584,6 +752,7 @@ function renderCalendar(bookings) {
     cur = new Date(y, m+1, 1);
   }
 
+  renderConflictBanner(findOverlaps(bookings));
   renderStats(bookings, today);
   renderTable(bookings, today);
   refreshHistoryPanel();
@@ -807,6 +976,8 @@ async function fetchAndMergeRemoteHistory() {
       start:    new Date(e.start + 'T00:00:00'),
       end:      new Date(e.end   + 'T00:00:00'),
       platform: platformOf(e.platform),
+      // stale = Action ho v posledních běžících feedech neviděl (viz update_history.py)
+      stale:    e.stale === true,
     }))
     .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
 

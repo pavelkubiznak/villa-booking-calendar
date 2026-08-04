@@ -35,7 +35,8 @@ Pole objektů, řazeno dle `start`. **Žádná jména hostů, žádné kontakty.
 
 ```json
 { "uidh": "4b10223bc51a8e91", "start": "2026-04-25", "end": "2026-05-02",
-  "platform": "E-chalupy" }
+  "platform": "E-chalupy",
+  "firstSeen": "2026-08-04", "lastSeen": "2026-08-04", "stale": false }
 ```
 
 Sémantika:
@@ -49,6 +50,9 @@ Sémantika:
   a ve feed.ics je nese `SUMMARY`).
 - **Žádné `guest` ani `uid` pole už neexistuje.** Šum `Airbnb (Not available)` je odfiltrovaný
   už ve zdroji (nikdy se nezapíše).
+- `firstSeen` / `lastSeen` = datum běhu Actionu, kdy se `uidh` ve feedu objevil poprvé / naposled.
+  `lastSeen: null` = záznam je starší než zavedení sledování a ve feedu už není.
+- `stale: true` = feed ho neuvádí déle než `STALE_AFTER_DAYS` (2 dny — přežije výpadek Actionu).
 - Archiv se prořezává na **18 měsíců** zpět (dle `end`).
 - Jméno hosta si majitel dohledá v extranetu platformy podle data + platformy.
 
@@ -93,6 +97,28 @@ uidh = sha256(uid_bytes_utf8).hexdigest()[:16]      # lowercase hex, prvních 16
   souborech**, při změně měnit synchronně.
 - Render: půldenní buňky — horní půlka = dopoledne (odjezd ↑10:00 = úklid), dolní = odpoledne
   (příjezd ↓15:00); barvy platforem `#E74C3C / #2980B9 / #27AE60 / #F39C12`.
+- **Duchové (`stale`)**: záznam, který vypadl z feedu, se kreslí světlou variantou barvy
+  platformy (`LIGHT[…]`) s tečkovaným obrysem (`.half-*.ghost`) a v tooltipu má
+  `⟨není ve feedu⟩`. Ručně zadané pobyty (`uid` začíná `manual-`) se za duchy NEPOVAŽUJÍ —
+  ve feedu nikdy nebudou. Události z `feed.ics` mají vždy `stale:false` a v `mergeHistory`
+  přebijí archiv (fresh se merguje jako poslední).
+
+## Překryvy rezervací — dvě úrovně
+
+| | Podmínka | Vzhled |
+|---|---|---|
+| **Skutečný** | oba pobyty `stale:false` | červený plný rámeček `.conflict`, ⚠, červený banner |
+| **Podezřelý** | aspoň jeden `stale:true` | oranžový čárkovaný `.conflict-soft`, ?, oranžový banner `.soft` |
+
+Konvence intervalu je `[start, end)` — **den odjezdu = den příjezdu není překryv**; stejné
+pravidlo jako hlídač `VrConflictWatch` v n8n, ať si obě místa neprotiřečí.
+
+⚠️ **Duchy nikdy nemazat.** E-chalupy (hub feedu) odmítají uložit rezervaci, která se
+překrývá s už existující — platná rezervace z druhého kanálu se proto do feedu vůbec
+nedostane a archivovaná kopie je jediný důkaz, že existuje. Ověřeno 2026-08-04 na termínu
+3.–10. 7. 2027: rezervace z Booking.com (zaplacená) je ve feedu `stale`, protože blok z Airbnb
+tam byl dřív. Prořezávat se smí jen podle stáří (18 měsíců po `end`), ne podle `stale`.
+(Jméno hosta si dohledej v extranetu podle data + platformy — do veřejného repa nepatří.)
 
 ## Owner dashboard (owner.html) — bezpečnostní model
 

@@ -12,30 +12,55 @@ Tenhle soubor drží jen aktuální stav práce a provozní pravidla.
 | Data | `data/feed.ics` + `data/history.json`, aktualizuje Action každé 3 h |
 | Jazyk UI | čeština |
 
-## ⚠️ AKTUÁLNÍ ÚKOL: kalendář tiše skrývá překryvy rezervací
+## Zobrazování překryvů rezervací (hotovo 2026-08-04, NENASAZENO)
 
-**Problém.** `getDayHalves()` (v `index.html` i `owner.html`) drží pro každý půlden jen jednu
-rezervaci (`amB` / `pmB` / `midB`). Když se dvě rezervace překrývají, pozdější v pořadí ta první
-**přepíše** a v UI po ní nezůstane žádná stopa — dvojitá rezervace vypadá jako normální pobyt.
+Dřív `getDayHalves()` držel pro každý půlden jen jednu rezervaci (`amB`/`pmB`/`midB`) —
+při překryvu pozdější tu první přepsal a dvojitá rezervace vypadala jako běžný pobyt.
+Teď každá polovina dne drží **pole** (`amAll` / `pmAll`) a překryv se kreslí:
 
-**V živých datech je k 2026-08-04 pět překryvů** (ověřeno nad `data/history.json`):
+- **Buňka** — šikmé šrafování barvami kolidujících platforem oddělené tmavě červenou.
+  Oddělovač tam musí zůstat: bez něj překryv dvou pobytů ze STEJNÉ platformy splyne
+  v plnou barvu (3 z 5 živých případů). Tooltip vypíše všechny dotčené pobyty.
+- **Banner** nad kalendářem — souhrn s odkazem, který skočí na dotčený měsíc.
+- **Dvě úrovně.** Oba pobyty živé ve `feed.ics` = červeně „dvojitá rezervace".
+  Aspoň jedna strana jen v archivu (`stale`) = oranžově „❓ překryv se starým záznamem" —
+  typicky propadlá předrezervace. Mazat se nesmí: hub odmítá import přes existující
+  překryv, takže i platná rezervace může z feedu zmizet.
 
-| Termín kolize | Rezervace |
-|---|---|
-| 2027-05-23 → 05-27 | Booking 05-22→05-29 × Booking 05-23→05-27 |
-| 2027-05-27 → 05-29 | Booking 05-22→05-29 × Booking 05-27→05-29 |
-| 2027-06-24 → 06-27 | Airbnb 06-23→06-27 × Fewo-direkt 06-24→06-27 |
-| 2027-07-03 → 07-10 | Airbnb × Booking.com, **identické datum** |
-| 2028-01-12 → 01-13 | Booking 01-02→01-16 × Booking 01-12→01-13 |
+`getDayHalves()` / `halfStyle()` / `findOverlaps()` / `renderConflictBanner()` jsou
+v `index.html` i `owner.html` **duplicitně a musí zůstat identické** — obě stránky
+jsou samostatné, sdílený JS soubor tu není.
 
-**Co je potřeba.** Překryv zviditelnit, ne skrýt. Návrh směru (k rozmyšlení, ne dogma):
-1. `getDayHalves()` vrací **pole** rezervací na půlden místo jedné.
-2. Kolizní buňka dostane vizuální varování (šrafování / červený rámeček) + tooltip vypíše všechny.
-3. Nahoře souhrnný banner „⚠️ N překryvů" s odkazy na dotčené měsíce.
-4. Stejná logika do obou stránek (sdílejí render kód — držet synchronně).
+Stav k 2026-08-04: v živých datech 5 překryvů, všech 5 „se starým záznamem" (21 buněk),
+žádný červený. Červená větev je ověřená jen syntetickými daty — první ostrý případ
+si zaslouží pohledem zkontrolovat. Obsazenost v owner KPI překryvy řešila už dřív
+(sjednocení dní, clamp 100 %), procenta se neměnila.
 
-Pozn.: obsazenost v owner KPI už překryvy řeší (počítá sjednocení dní, clamp 100 %), takže
-procenta jsou v pořádku; problém je čistě ve vykreslení a v absenci upozornění.
+## ⏭️ DALŠÍ KROK (odsouhlaseno): číst čtyři feedy místo jednoho hubu
+
+Dnes se čte **jen** e-chalupy feed (`ICAL_URL` v `update_history.py`). E-chalupy fungují jako
+hub — mají cross-iCal na Airbnb, Booking i FeWo — a svůj souhrn posílají dál. Tím vznikají
+oba problémy najednou:
+
+- **duplicity** — jeden pobyt se vrací zpátky jako blok z cizí platformy;
+- **ztráty** — e-chalupy odmítají uložit rezervaci překrývající existující, takže platná
+  rezervace z druhého kanálu se do feedu vůbec nedostane (3.–10. 7. 2027, Booking.com).
+
+Směr: číst Airbnb / Booking / FeWo / e-chalupy **každý zvlášť** a filtrovat na vlastní
+rezervace kanálu (Airbnb značí cizí bloky `Airbnb (Not available)` — filtr už v parseru je;
+FeWo `Reserved - <jméno>` vs. importované). Pak platí bez heuristik: překryv dvou různých
+feedů = skutečná dvojitá rezervace. Cross-iCal mezi platformami zůstává, blokuje dostupnost.
+
+Cíl dál: vlastní feed publikovat **ven** a nechat platformy odebírat jeho, ne e-chalupy.
+
+**Jména hostů z feedů nejdou** (ověřeno 2026-08-04 na živém feedu, 34 událostí):
+Booking posílá `SUMMARY: CLOSED - Not available`, Airbnb `Reserved` — bez jména.
+Jméno dává jen FeWo (křestní) a e-chalupy (volný text majitele). Slučovat podle jmen tedy
+nelze a veřejná data zůstávají anonymizovaná.
+
+Channel manager (Lodgify ap.) je **zamítnutý**: vyžaduje jednotnou měnu napříč kanály,
+CZK nepodporuje → Booking by musel prodávat v EUR, výplata by přišla v CZK a majitel by
+platil dvojí konverzi.
 
 ## Provozní pravidla (DŮLEŽITÉ)
 
@@ -43,8 +68,10 @@ procenta jsou v pořádku; problém je čistě ve vykreslení a v absenci upozor
    Nasazuj `git push` z tohoto klonu, nebo `gh api --method PUT .../contents/<path>` s base64.
 2. `data/*` píše GitHub Action — ruční změny `history.json` / `feed.ics` příští běh přepíše.
 3. Repo je **veřejné**. Do klientských HTML nikdy: e-chalupy feed URL/klíč, owner token, ceny v plaintextu.
-4. Veřejná data jsou **anonymizovaná** (od 2026-07): `history.json` = `{uidh,start,end,platform}`,
-   žádná jména hostů. Sanitizace u zdroje v `.github/scripts/update_history.py`.
+4. Veřejná data jsou **anonymizovaná** (od 2026-07): `history.json` =
+   `{uidh,start,end,platform,firstSeen,lastSeen,stale}`, žádná jména hostů.
+   Sanitizace u zdroje v `.github/scripts/update_history.py`.
+   `stale:true` = záznam už není v aktuálním `feed.ics` (v archivu zůstává schválně).
 5. `gh` token zatím **nemá `workflow` scope** — úpravy `.github/workflows/*` selžou, dokud
    Pavel nespustí `gh auth refresh -h github.com -s workflow`. Ostatní commity fungují.
 6. Po nasazení ověřuj přes `gh api .../contents/<file>` (raw.githubusercontent má ~5 min cache;
@@ -55,6 +82,8 @@ procenta jsou v pořádku; problém je čistě ve vykreslení a v absenci upozor
 - 2026-07: anonymizace veřejných dat (jména pryč, UID → hash).
 - 2026-07: okno kalendáře = aktuální měsíc **+24 měsíců** (vždy ≥2 roky dopředu).
 - 2026-08: v záhlaví měsíce chip **obsazené noci / dny · %** (počítáno po nocích).
+- 2026-08: **překryvy rezervací se zobrazují** (šrafování + banner) místo tichého přepsání;
+  `history.json` dostal `firstSeen` / `lastSeen` / `stale`.
 
 ## Kontext
 

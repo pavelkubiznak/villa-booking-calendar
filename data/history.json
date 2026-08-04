@@ -3,336 +3,504 @@
     "uidh": "4b10223bc51a8e91",
     "start": "2026-04-25",
     "end": "2026-05-02",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "86a96121a42679e7",
     "start": "2026-05-08",
     "end": "2026-05-10",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "a096527c69dde3fe",
     "start": "2026-05-14",
     "end": "2026-05-17",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "42e109a7788e5d81",
     "start": "2026-05-22",
     "end": "2026-05-25",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "05269fcea396fbf3",
     "start": "2026-05-25",
     "end": "2026-05-29",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "593c8ccae6490457",
     "start": "2026-05-29",
     "end": "2026-05-31",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "fd6ff15a677b0b27",
     "start": "2026-06-04",
     "end": "2026-06-07",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "f875c6eef4d6e4b8",
     "start": "2026-06-11",
     "end": "2026-06-14",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "df3ba2880f0ab09e",
     "start": "2026-06-15",
     "end": "2026-06-22",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "ab75e02fa061b9bc",
     "start": "2026-06-26",
     "end": "2026-07-02",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "cc0faeeb1844151f",
     "start": "2026-07-03",
     "end": "2026-07-08",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "0af9423cbd7dfdab",
     "start": "2026-07-08",
     "end": "2026-07-11",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "df42494f06851d4d",
     "start": "2026-07-12",
     "end": "2026-07-18",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "4223dbb99ead635a",
     "start": "2026-07-18",
     "end": "2026-07-25",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "1b73471f9b0d57e4",
     "start": "2026-07-25",
     "end": "2026-08-01",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "cfcea2b61463c82d",
     "start": "2026-08-01",
     "end": "2026-08-08",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "f1ae2511167c79ac",
     "start": "2026-08-08",
     "end": "2026-08-15",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "7256c78ed680df79",
     "start": "2026-08-15",
     "end": "2026-08-22",
-    "platform": "Fewo-direkt"
+    "platform": "Fewo-direkt",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "902361665a609b37",
     "start": "2026-08-22",
     "end": "2026-08-28",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "fe0bfa47d0552690",
     "start": "2026-08-28",
     "end": "2026-08-30",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "f9dd2388d2c4c058",
     "start": "2026-08-30",
     "end": "2026-09-06",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "c3b34d6c3af39ee6",
     "start": "2026-09-11",
     "end": "2026-09-13",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "3d35fe03b6a04aef",
     "start": "2026-09-17",
     "end": "2026-09-19",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "c3c837c26ace90ac",
     "start": "2026-09-19",
     "end": "2026-09-26",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "36dc81faa40bdb13",
     "start": "2026-10-02",
     "end": "2026-10-04",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "113739dbb85a5343",
     "start": "2026-10-10",
     "end": "2026-10-17",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "1e3f88584ce53102",
     "start": "2026-10-18",
     "end": "2026-10-24",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "3fb52e213c8b34e4",
     "start": "2026-10-24",
     "end": "2026-10-26",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "e8b4d62d4af2c11d",
     "start": "2026-10-28",
     "end": "2026-10-30",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "f5d5488f55688e08",
     "start": "2026-10-30",
     "end": "2026-11-02",
-    "platform": "Fewo-direkt"
+    "platform": "Fewo-direkt",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "ff1d96d5b409b987",
     "start": "2026-11-02",
     "end": "2026-11-30",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "c796937bdd725da1",
     "start": "2026-11-30",
     "end": "2026-12-18",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "c8a23f3ddfd52fe3",
     "start": "2026-12-19",
     "end": "2026-12-26",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "bed046da25665575",
     "start": "2026-12-26",
     "end": "2027-01-03",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "21e3d36c3b02fb33",
     "start": "2027-01-03",
     "end": "2027-01-10",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "86125432395831dd",
     "start": "2027-01-30",
     "end": "2027-02-06",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "64cdae4a4d8804f0",
     "start": "2027-02-06",
     "end": "2027-02-13",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "19d51f88e4ed6e00",
     "start": "2027-02-20",
     "end": "2027-02-27",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "c161e61dd8621520",
     "start": "2027-04-29",
     "end": "2027-05-02",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "5e11edb78d1fce7e",
     "start": "2027-05-05",
     "end": "2027-05-09",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "975d284eb3cde10b",
     "start": "2027-05-14",
     "end": "2027-05-18",
-    "platform": "Fewo-direkt"
+    "platform": "Fewo-direkt",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "3100d5fc809e5ca8",
     "start": "2027-05-22",
     "end": "2027-05-29",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "ca3fddf724b7a8ee",
     "start": "2027-05-23",
     "end": "2027-05-27",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "af6258992c171964",
     "start": "2027-05-27",
     "end": "2027-05-29",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "4074ff4000b5af7f",
     "start": "2027-06-10",
     "end": "2027-06-13",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "455b4901bb9ca591",
     "start": "2027-06-17",
     "end": "2027-06-20",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "b230052074c7f3f6",
     "start": "2027-06-23",
     "end": "2027-06-27",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "87ce862a9c3d89d2",
     "start": "2027-06-24",
     "end": "2027-06-27",
-    "platform": "Fewo-direkt"
+    "platform": "Fewo-direkt",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "0dcf556ecb298ab7",
     "start": "2027-07-03",
     "end": "2027-07-10",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "44f67225fb4ecfb9",
     "start": "2027-07-03",
     "end": "2027-07-10",
-    "platform": "Airbnb"
+    "platform": "Airbnb",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "fb224018908e978b",
     "start": "2027-07-12",
     "end": "2027-07-21",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "7d554b0cd7bfedf3",
     "start": "2027-08-30",
     "end": "2027-09-05",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "f97dcca1c99cfe14",
     "start": "2027-10-29",
     "end": "2027-11-01",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   },
   {
     "uidh": "75f8ee15e5177604",
     "start": "2028-01-02",
     "end": "2028-01-16",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "1160587c4e9a34f0",
     "start": "2028-01-12",
     "end": "2028-01-13",
-    "platform": "Booking.com"
+    "platform": "Booking.com",
+    "firstSeen": null,
+    "lastSeen": null,
+    "stale": true
   },
   {
     "uidh": "30fa80afc7c4aae6",
     "start": "2028-05-25",
     "end": "2028-05-28",
-    "platform": "E-chalupy"
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-04",
+    "lastSeen": "2026-08-04",
+    "stale": false
   }
 ]
