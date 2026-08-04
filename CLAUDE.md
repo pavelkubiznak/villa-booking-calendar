@@ -12,7 +12,7 @@ Tenhle soubor drží jen aktuální stav práce a provozní pravidla.
 | Data | `data/feed.ics` + `data/history.json`, aktualizuje Action každé 3 h |
 | Jazyk UI | čeština |
 
-## Zobrazování překryvů rezervací (hotovo 2026-08-04, NENASAZENO)
+## Zobrazování překryvů rezervací (hotovo a NASAZENO 2026-08-04)
 
 Dřív `getDayHalves()` držel pro každý půlden jen jednu rezervaci (`amB`/`pmB`/`midB`) —
 při překryvu pozdější tu první přepsal a dvojitá rezervace vypadala jako běžný pobyt.
@@ -31,8 +31,9 @@ Teď každá polovina dne drží **pole** (`amAll` / `pmAll`) a překryv se kres
 v `index.html` i `owner.html` **duplicitně a musí zůstat identické** — obě stránky
 jsou samostatné, sdílený JS soubor tu není.
 
-Stav k 2026-08-04: v živých datech 5 překryvů, všech 5 „se starým záznamem" (21 buněk),
-žádný červený. Červená větev je ověřená jen syntetickými daty — první ostrý případ
+Stav k 2026-08-04: **ověřeno živě na Pages** — v datech 5 překryvů, všech 5 „se starým
+záznamem" (21 šrafovaných buněk), žádný červený. Vizuálně potvrzeno na červnu 2027
+(24.–27.) i červenci 2027 (3.–10.). Červená větev je ověřená jen syntetickými daty — první ostrý případ
 si zaslouží pohledem zkontrolovat. Obsazenost v owner KPI překryvy řešila už dřív
 (sjednocení dní, clamp 100 %), procenta se neměnila.
 
