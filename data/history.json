@@ -477,6 +477,15 @@
     "stale": false
   },
   {
+    "uidh": "9ecf9854e2ed94fd",
+    "start": "2027-12-27",
+    "end": "2028-01-03",
+    "platform": "Fewo-direkt",
+    "firstSeen": "2026-08-08",
+    "lastSeen": "2026-08-08",
+    "stale": false
+  },
+  {
     "uidh": "75f8ee15e5177604",
     "start": "2028-01-02",
     "end": "2028-01-16",
