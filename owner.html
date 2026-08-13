@@ -105,9 +105,8 @@
   .day-cell.conflict .day-num { color: #C0392B; font-weight: 800; }
   .day-cell.conflict .day-num::after { content: '⚠'; font-size: 8px; vertical-align: super; margin-left: 1px; }
   /* Překryv, kde je aspoň jedna strana duch — jen k ověření, ne poplach. */
-  .day-cell.conflict-soft { outline: 2px dashed #C47B1A; outline-offset: -2px; z-index: 2; }
-  .day-cell.conflict-soft .day-num { color: #A04000; font-weight: 800; }
-  .day-cell.conflict-soft .day-num::after { content: '?'; font-size: 8px; vertical-align: super; margin-left: 1px; }
+  /* Překryv se starým záznamem se v mřížce NEOZNAČUJE (dřív oranžový čárkovaný
+     rámeček + „?"). Zůstává v tooltipu a v banneru nad kalendářem. */
   .half-am.clash, .half-pm.clash { color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.95); }
   /* Duch (vypadl z feedu) — musí být za .clash i .dark-txt, aby při shodné specificitě vyhrál. */
   .half-am.ghost, .half-pm.ghost {
@@ -533,16 +532,27 @@ function getDayHalves(y, m, d, bookings) {
   };
 }
 
+// Co se z půldne opravdu kreslí (2026-08, po stížnosti na nesrozumitelné šrafování).
+// Mrtvý záznam ustupuje živé rezervaci: přeuložený pobyt dostane nové UID a ten starý
+// v archivu osiří — kreslit oba přes sebe dělalo z běžného pobytu falešný poplach.
+// Zůstane-li v půldni JEN mrtvý záznam, kreslí se dál (světle): hub je ztrátový,
+// archiv je pak jediný doklad, že tam pobyt je. Drženo synchronně s index.html.
+function shown(list) {
+  const live = list.filter(b => !b.stale);
+  return live.length ? live : list.slice(0, 1);
+}
+
 // Pozadí půldne: jedna rezervace = plná barva, víc = šikmé pruhy platforem
 // oddělené tmavě červenou (bez oddělovače by překryv dvou pobytů ze STEJNÉ
-// platformy splynul v plnou barvu).
+// platformy splynul v plnou barvu). Šrafuje se JEN překryv dvou ŽIVÝCH pobytů.
 function halfStyle(list) {
-  if (!list.length) return '';
+  const vis = shown(list);
+  if (!vis.length) return '';
   // Duch = světlá varianta barvy platformy: pořád poznáš zdroj, ale nevypadá potvrzeně.
   const colOf = b => b.stale ? (LIGHT[b.platform] || '#ECEFF1') : (COL[b.platform] || '#B0BEC5');
-  if (list.length === 1) return `background:${colOf(list[0])}`;
+  if (vis.length === 1) return `background:${colOf(vis[0])}`;
   const stops = [];
-  list.forEach((b, i) => {
+  vis.forEach((b, i) => {
     const c = colOf(b);
     const o = i * 10;
     stops.push(`${c} ${o}px, ${c} ${o + 7}px`, `#7B241C ${o + 7}px, #7B241C ${o + 10}px`);
@@ -998,16 +1008,21 @@ function renderCalendar(bookings) {
       const cell = document.createElement('div');
       const dt = new Date(y, m, d);
       const h = getDayHalves(y, m, d, bookings);
-      cell.className = 'day-cell' + (sd(dt, today) ? ' today' : '') +
-        (h.conflictReal ? ' conflict' : (h.conflict ? ' conflict-soft' : ''));
+      // Rámeček jen u skutečné dvojité rezervace; překryv se starým záznamem
+      // se v mřížce neoznačuje a zůstává v tooltipu a v banneru.
+      cell.className = 'day-cell' + (sd(dt, today) ? ' today' : '') + (h.conflictReal ? ' conflict' : '');
       const tipLines = [];
       let halvesHtml = '<div class="cell-halves"></div>';
       if (h.any) {
-        // šrafování má přednost před dark-txt: přes pruhy je čitelný jen obrys
-        // ghost (celý půlden jen z duchů) přebíjí obojí — světlé pozadí chce tmavý text
-        const ghostCls = list => (list.length && list.every(b => b.stale)) ? ' ghost' : '';
-        const amCls = (h.amAll.length > 1 ? ' clash' : (h.am?.platform === 'Fewo-direkt' ? ' dark-txt' : '')) + ghostCls(h.amAll);
-        const pmCls = (h.pmAll.length > 1 ? ' clash' : (h.pm?.platform === 'Fewo-direkt' ? ' dark-txt' : '')) + ghostCls(h.pmAll);
+        // Řídí se tím, co se v půldni SKUTEČNĚ kreslí (shown), ne vším, co se ho dotýká.
+        const halfCls = list => {
+          const vis = shown(list);
+          if (vis.length > 1) return ' clash';
+          if (!vis.length)    return '';
+          if (vis[0].stale)   return ' ghost';
+          return vis[0].platform === 'Fewo-direkt' ? ' dark-txt' : '';
+        };
+        const amCls = halfCls(h.amAll), pmCls = halfCls(h.pmAll);
         halvesHtml = `<div class="cell-halves">` +
           `<div class="half-am${amCls}" style="${halfStyle(h.amAll)}">${h.isCheckout ? '↑10' : ''}</div>` +
           `<div class="half-pm${pmCls}" style="${halfStyle(h.pmAll)}">${h.isCheckin ? '↓15' : ''}</div></div>`;

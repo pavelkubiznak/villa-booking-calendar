@@ -26,22 +26,49 @@ Teď každá polovina dne drží **pole** (`amAll` / `pmAll`) a překryv se kres
 
 - **Buňka** — šikmé šrafování barvami kolidujících platforem oddělené tmavě červenou.
   Oddělovač tam musí zůstat: bez něj překryv dvou pobytů ze STEJNÉ platformy splyne
-  v plnou barvu (3 z 5 živých případů). Tooltip vypíše všechny dotčené pobyty.
+  v plnou barvu. Tooltip vypíše všechny dotčené pobyty.
 - **Banner** nad kalendářem — souhrn s odkazem, který skočí na dotčený měsíc.
 - **Dvě úrovně.** Oba pobyty živé ve `feed.ics` = červeně „dvojitá rezervace".
-  Aspoň jedna strana jen v archivu (`stale`) = oranžově „❓ překryv se starým záznamem" —
+  Aspoň jedna strana jen v archivu (`stale`) = „❓ překryv se starým záznamem" —
   typicky propadlá předrezervace. Mazat se nesmí: hub odmítá import přes existující
   překryv, takže i platná rezervace může z feedu zmizet.
 
-`getDayHalves()` / `halfStyle()` / `findOverlaps()` / `renderConflictBanner()` jsou
+### Šrafuje se JEN skutečná dvojitá rezervace (2026-08-13)
+
+Majitel 5. 8.: *„je to těžko pochopitelný, uklízečky se v tom ztratí."* Měl pravdu a data
+mu dala za pravdu dvakrát: k 2026-08-13 bylo v kalendáři **15 šrafovaných buněk a ani jedna
+nebyla skutečný konflikt** — všech 5 překryvů mělo aspoň jednu stranu mrtvou. Pro úklid je to
+navíc informace k ničemu: den odjezdu je den úklidu bez ohledu na kolizi v archivu.
+
+Rozhodovadlem je nová funkce **`shown(list)`** — co se z půldne opravdu kreslí:
+
+| v půldni sedí | kreslí se | šrafa | rámeček |
+|---|---|---|---|
+| ≥2 **živé** rezervace | obě, pruhy | ✅ ano | červený `.conflict` |
+| živá + mrtvá (`stale`) | jen ta živá | ne | žádný |
+| jen mrtvá / víc mrtvých | první mrtvá, světle (`.ghost`) | ne | žádný |
+
+**Mrtvý záznam sám v půldni se schválně kreslí dál.** Hub je ztrátový — když z feedu vypadne
+platná rezervace, archiv je jediný doklad, že tam pobyt je. Prázdná buňka by tvrdila „volno"
+a to je horší chyba než šrafa. Skrývá se jen tam, kde je stejně překrytý živou rezervací
+(přeuložený pobyt dostane nové UID a ten starý osiří — to byl zdroj falešných poplachů).
+
+Oranžový čárkovaný rámeček + „?" (`.conflict-soft`) je **pryč z obou stránek**. Překryv se
+starým záznamem zůstává v tooltipu a v banneru nad kalendářem — v jednom místě místo
+rozmazaný přes 15 buněk.
+
+`getDayHalves()` / `shown()` / `halfStyle()` / `findOverlaps()` / `renderConflictBanner()` jsou
 v `index.html` i `owner.html` **duplicitně a musí zůstat identické** — obě stránky
 jsou samostatné, sdílený JS soubor tu není.
 
-Stav k 2026-08-04: **ověřeno živě na Pages** — v datech 5 překryvů, všech 5 „se starým
-záznamem" (21 šrafovaných buněk), žádný červený. Vizuálně potvrzeno na červnu 2027
-(24.–27.) i červenci 2027 (3.–10.). Červená větev je ověřená jen syntetickými daty — první ostrý případ
-si zaslouží pohledem zkontrolovat. Obsazenost v owner KPI překryvy řešila už dřív
-(sjednocení dní, clamp 100 %), procenta se neměnila.
+Stav k 2026-08-13: ověřeno v Chromiu proti živým datům — **15 šrafovaných buněk → 0**,
+0 červených rámečků, 0 JS chyb, 25 měsíců se renderuje. Vizuálně potvrzeno na květnu
+a červnu 2027 (dřív nejhorší chuchvalec, teď čistý blok platformy).
+**Červená větev ověřená podvrženými daty** (dvě živé rezervace přes sebe → 6 šrafovaných
+půldnů + 4 červené buňky, oddělovač `#7B241C` na místě), a taky obě negativní větve
+(živá×mrtvá i mrtvá×mrtvá → 0 šraf, buňka zůstane obarvená). První ostrý červený případ
+si pořád zaslouží pohledem zkontrolovat. Obsazenost v owner KPI se nemění (počítá se
+po nocích přes sjednocení dní, ne přes barvy).
 
 ## ⏭️ DALŠÍ KROK (odsouhlaseno): číst čtyři feedy místo jednoho hubu
 
@@ -91,6 +118,8 @@ platil dvojí konverzi.
 - 2026-08: v záhlaví měsíce chip **obsazené noci / dny · %** (počítáno po nocích).
 - 2026-08: **překryvy rezervací se zobrazují** (šrafování + banner) místo tichého přepsání;
   `history.json` dostal `firstSeen` / `lastSeen` / `stale`.
+- 2026-08-13: **šrafuje se jen skutečná dvojitá rezervace** (viz výš) — 15 matoucích
+  šrafovaných buněk pryč, `.conflict-soft` zrušen.
 
 ## Kontext
 
