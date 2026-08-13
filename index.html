@@ -88,10 +88,9 @@
   .day-cell.conflict { outline: 2px solid #C0392B; outline-offset: -2px; z-index: 3; }
   .day-cell.conflict .day-num { color: #C0392B; font-weight: 800; }
   .day-cell.conflict .day-num::after { content: '⚠'; font-size: 8px; vertical-align: super; margin-left: 1px; }
-  /* Překryv, kde je aspoň jedna strana duch — jen k ověření, ne poplach. */
-  .day-cell.conflict-soft { outline: 2px dashed #C47B1A; outline-offset: -2px; z-index: 2; }
-  .day-cell.conflict-soft .day-num { color: #A04000; font-weight: 800; }
-  .day-cell.conflict-soft .day-num::after { content: '?'; font-size: 8px; vertical-align: super; margin-left: 1px; }
+  /* Překryv se starým záznamem se v mřížce NEOZNAČUJE (dřív oranžový čárkovaný
+     rámeček + „?"). Pro úklid to byl šum — den odjezdu je den úklidu bez ohledu
+     na kolizi v archivu. Zůstává v tooltipu a v banneru nad kalendářem. */
 
   /* Half-day split — top = checkout (↑ morning), bottom = checkin (↓ afternoon) */
   .cell-halves { display: flex; flex-direction: column; flex: 1; min-height: 22px; }
@@ -548,17 +547,32 @@ function getDayHalves(y, m, d, bookings) {
   };
 }
 
+// Co se z půldne opravdu kreslí (2026-08, po stížnosti na nesrozumitelné šrafování).
+// Mrtvý záznam ustupuje živé rezervaci: když platforma pobyt přeuloží, dostane nové
+// UID a ten starý v archivu osiří — kreslit oba přes sebe dělalo z úplně běžného
+// pobytu falešný poplach (5 z 5 živých případů k 2026-08-13).
+// Zůstane-li v půldni JEN mrtvý záznam, kreslí se dál (světle): hub je ztrátový,
+// archiv je pak jediný doklad, že tam pobyt je, a prázdná buňka by tvrdila „volno".
+function shown(list) {
+  const live = list.filter(b => !b.stale);
+  return live.length ? live : list.slice(0, 1);
+}
+
 // Pozadí půldne: jedna rezervace = plná barva platformy, víc = šikmé pruhy barev
-// všech kolidujících platforem oddělené tmavě červenou. Oddělovač je tam kvůli
-// překryvu dvou pobytů ze STEJNÉ platformy — bez něj by pruhy splynuly v plnou barvu.
+// oddělené tmavě červenou. Oddělovač je tam kvůli překryvu dvou pobytů ze STEJNÉ
+// platformy — bez něj by pruhy splynuly v plnou barvu.
+// Šrafuje se JEN překryv dvou ŽIVÝCH pobytů, tedy skutečná dvojitá rezervace, kterou
+// je potřeba řešit na platformě. Překryv se starým záznamem projde jako běžný pobyt
+// a zůstane jen v tooltipu a v banneru nad kalendářem.
 function halfStyle(list) {
-  if (!list.length) return '';
+  const vis = shown(list);
+  if (!vis.length) return '';
   // Duch se kreslí světlou variantou barvy platformy — pořád poznáš, odkud je,
   // ale na první pohled nevypadá jako potvrzená obsazenost.
   const colOf = b => b.stale ? (LIGHT[b.platform] || '#ECEFF1') : (COL[b.platform] || '#B0BEC5');
-  if (list.length === 1) return `background:${colOf(list[0])}`;
+  if (vis.length === 1) return `background:${colOf(vis[0])}`;
   const stops = [];
-  list.forEach((b, i) => {
+  vis.forEach((b, i) => {
     const c = colOf(b);
     const o = i * 10;
     stops.push(`${c} ${o}px, ${c} ${o + 7}px`, `#7B241C ${o + 7}px, #7B241C ${o + 10}px`);
@@ -711,23 +725,29 @@ function renderCalendar(bookings) {
 
       // ── FIX 4: Half-day split rendering ──────────────────────────────────
       const h = getDayHalves(y, m, d, bookings);
-      cell.className = 'day-cell' + (isToday ? ' today' : '') +
-        (h.conflictReal ? ' conflict' : (h.conflict ? ' conflict-soft' : ''));
+      // Rámeček jen u skutečné dvojité rezervace. Překryv se starým záznamem se
+      // v mřížce neoznačuje vůbec — patří do banneru, ne do 15 buněk kalendáře.
+      cell.className = 'day-cell' + (isToday ? ' today' : '') + (h.conflictReal ? ' conflict' : '');
       const tipLines = [];
       let halvesHtml = '<div class="cell-halves"></div>';
 
       if (h.any) {
-        // šrafování má přednost před dark-txt: přes pruhy je čitelný jen obrys
-        // ghost (celý půlden jen z duchů) přebíjí obojí — světlé pozadí chce tmavý text
-        const ghostCls = list => (list.length && list.every(b => b.stale)) ? ' ghost' : '';
-        const amCls    = (h.amAll.length > 1 ? ' clash' : (h.am?.platform === 'Fewo-direkt' ? ' dark-txt' : '')) + ghostCls(h.amAll);
-        const pmCls    = (h.pmAll.length > 1 ? ' clash' : (h.pm?.platform === 'Fewo-direkt' ? ' dark-txt' : '')) + ghostCls(h.pmAll);
-        const amTime   = h.isCheckout ? '↑10' : '';
-        const pmTime   = h.isCheckin  ? '↓15' : '';
+        // Třída se řídí tím, co se v půldni SKUTEČNĚ kreslí (shown), ne vším, co se ho
+        // dotýká: šrafování (clash) má přednost před dark-txt, protože přes pruhy je
+        // čitelný jen obrys; duch chce naopak tmavý text na světlém pozadí.
+        const halfCls = list => {
+          const vis = shown(list);
+          if (vis.length > 1)   return ' clash';                                  // dva živé pobyty
+          if (!vis.length)      return '';
+          if (vis[0].stale)     return ' ghost';
+          return vis[0].platform === 'Fewo-direkt' ? ' dark-txt' : '';
+        };
+        const amTime = h.isCheckout ? '↑10' : '';
+        const pmTime = h.isCheckin  ? '↓15' : '';
 
         halvesHtml = `<div class="cell-halves">` +
-          `<div class="half-am${amCls}" style="${halfStyle(h.amAll)}">${amTime}</div>` +
-          `<div class="half-pm${pmCls}" style="${halfStyle(h.pmAll)}">${pmTime}</div>` +
+          `<div class="half-am${halfCls(h.amAll)}" style="${halfStyle(h.amAll)}">${amTime}</div>` +
+          `<div class="half-pm${halfCls(h.pmAll)}" style="${halfStyle(h.pmAll)}">${pmTime}</div>` +
           `</div>`;
 
         if (h.conflict) {
