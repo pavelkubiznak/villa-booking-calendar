@@ -14,7 +14,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Run tests
+        run: python3 .github/scripts/test_update_history.py
+
       - name: Fetch iCal and update history
+        # Feed URLs hold private keys — they live in repo secrets, never in the repo.
+        # Unset secrets arrive as empty strings and the script simply skips that feed:
+        # with only ICAL_URL_ECHALUPY (or its legacy fallback) it stays in HUB MODE and
+        # behaves exactly as before. Add the other three to switch to MULTI MODE.
+        env:
+          ICAL_URL_AIRBNB:    ${{ secrets.ICAL_URL_AIRBNB }}
+          ICAL_URL_BOOKING:   ${{ secrets.ICAL_URL_BOOKING }}
+          ICAL_URL_FEWO:      ${{ secrets.ICAL_URL_FEWO }}
+          ICAL_URL_ECHALUPY:  ${{ secrets.ICAL_URL_ECHALUPY }}
         run: python3 .github/scripts/update_history.py
 
       - name: Commit and push if changed

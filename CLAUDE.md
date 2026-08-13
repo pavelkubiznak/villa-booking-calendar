@@ -70,20 +70,66 @@ půldnů + 4 červené buňky, oddělovač `#7B241C` na místě), a taky obě ne
 si pořád zaslouží pohledem zkontrolovat. Obsazenost v owner KPI se nemění (počítá se
 po nocích přes sjednocení dní, ne přes barvy).
 
-## ⏭️ DALŠÍ KROK (odsouhlaseno): číst čtyři feedy místo jednoho hubu
+## Čtyři feedy místo jednoho hubu (kód HOTOV 2026-08-13, čeká na 3 secrety)
 
-Dnes se čte **jen** e-chalupy feed (`ICAL_URL` v `update_history.py`). E-chalupy fungují jako
-hub — mají cross-iCal na Airbnb, Booking i FeWo — a svůj souhrn posílají dál. Tím vznikají
-oba problémy najednou:
+Dřív se četl **jen** e-chalupy feed. E-chalupy fungují jako hub — mají cross-iCal na Airbnb,
+Booking i FeWo — a svůj souhrn posílají dál. Tím vznikaly oba problémy najednou:
 
 - **duplicity** — jeden pobyt se vrací zpátky jako blok z cizí platformy;
 - **ztráty** — e-chalupy odmítají uložit rezervaci překrývající existující, takže platná
   rezervace z druhého kanálu se do feedu vůbec nedostane (3.–10. 7. 2027, Booking.com).
 
-Směr: číst Airbnb / Booking / FeWo / e-chalupy **každý zvlášť** a filtrovat na vlastní
-rezervace kanálu (Airbnb značí cizí bloky `Airbnb (Not available)` — filtr už v parseru je;
-FeWo `Reserved - <jméno>` vs. importované). Pak platí bez heuristik: překryv dvou různých
-feedů = skutečná dvojitá rezervace. Cross-iCal mezi platformami zůstává, blokuje dostupnost.
+`update_history.py` teď umí číst **čtyři feedy zvlášť** a filtrovat každý na vlastní
+rezervace kanálu. Přepíná se sám podle toho, co je nastavené:
+
+| | |
+|---|---|
+| **HUB MODE** | nastavený jen e-chalupy feed → chová se **přesně** jako dřív, platforma se bere z UID |
+| **MULTI MODE** | dva a víc feedů → platforma = **kanál, ze kterého feed přišel**, cizí bloky se filtrují |
+
+URL feedů se čtou z prostředí, **nikdy z repa**: `ICAL_URL_AIRBNB`, `ICAL_URL_BOOKING`,
+`ICAL_URL_FEWO`, `ICAL_URL_ECHALUPY` (workflow je bere ze secrets). Nenastavený secret =
+prázdný řetězec = feed se přeskočí. **Dokud Pavel secrety nepřidá, běží to v hub módu
+a nezmění se vůbec nic** — ověřeno testem, který pouští starou i novou verzi nad stejným
+feedem a diffuje `history.json` i `feed.ics` (bajtová shoda).
+
+### Tři věci, kterými to stojí a padá
+
+1. **Filtr vlastních rezervací.** Cizí blok se pozná podle UID (platforma nerazítkuje cizí
+   systém na vlastní rezervaci) a podle značek v SUMMARY. **Asymetrie je schválná:** blok se
+   zahodí, jen když je jeho domovský kanál sám nakonfigurovaný — tedy když ten pobyt jistě
+   přijde z vlastního feedu. Jinak se **nechá** (duplicita je menší zlo než ztracená
+   rezervace) a zaloguje se. Každý zahozený záznam je v logu i s důvodem; feed, ze kterého
+   neprojde nic, křičí `::warning::`.
+2. **Pojistka proti falešnému poplachu.** Kdyby filtr někdy pustil zrcadlo dál, ten samý
+   pobyt by byl ve dvou feedech, oba živé → **červená dvojitá rezervace**, přesně ten šum,
+   co jsme právě odstranili z UI. Proto se slučují události se **shodným** `(start, end)`
+   napříč kanály (zrcadlo sedí den na den; skutečná kolize skoro nikdy) a každé sloučení
+   se hlásí `::warning::`. Kolize uvnitř jednoho kanálu se nesluší nikdy.
+3. **Kontinuita `uidh`.** Tenhle pobyt má v hub feedu **jiné UID** než ve feedu svého kanálu,
+   takže naivní přepnutí by dalo každé živé rezervaci nový `uidh`: staré záznamy by osiřely
+   na duchy a — hlavně — `/sprava/` na villarudolf.com se na kalendář váže právě přes tenhle
+   klíč (`vr_bookings.uidh`). Skript proto při shodě `(start, end, platform)` **převezme
+   archivní `uidh`** místo založení nového. Každé převzetí je v logu, jeden archivní klíč
+   se převezme nejvýš jednou za běh.
+
+Navíc: když **kterýkoli** feed selže (výpadek, přihlašovací stránka místo iCal), skript
+skončí chybou a **archiv nepřepíše** — jinak by feed bez rezervací vypadal jako feed, kde
+všechny rezervace zmizely, a nechal by je zestárnout do `stale`.
+
+Testy: `python3 .github/scripts/test_update_history.py` (bez závislostí, bez sítě, pouští je
+i workflow před ostrým během). `--dry-run` spočítá vše a nic nezapíše, `--fixtures <dir>`
+čte `<dir>/<kanál>.ics` místo sítě.
+
+**⏭️ Zbývá:** přidat do repo secrets `ICAL_URL_AIRBNB`, `ICAL_URL_BOOKING`, `ICAL_URL_FEWO`
+(a ideálně `ICAL_URL_ECHALUPY`, viz níž) a pak pustit workflow ručně s `--dry-run`, než se
+nechá zapisovat. Filtrovací pravidla jsou navržená podle toho, jak vypadá **hub** feed —
+ostré feedy jednotlivých kanálů zatím nikdo neviděl, takže první běh je potřeba přečíst
+v logu a pravidla případně doladit. Proto ten hlasitý log a proto `--dry-run`.
+
+⚠️ **Legacy e-chalupy URL i s klíčem je pořád v `update_history.py`** jako fallback, aby
+Action nepřestala běžet. V repu bylo odjakživa, takže je stejně prozrazené — ale patří pryč:
+nastav `ICAL_URL_ECHALUPY` jako secret a konstantu `LEGACY_HUB_URL` smaž.
 
 Cíl dál: vlastní feed publikovat **ven** a nechat platformy odebírat jeho, ne e-chalupy.
 
@@ -106,8 +152,10 @@ platil dvojí konverzi.
    `{uidh,start,end,platform,firstSeen,lastSeen,stale}`, žádná jména hostů.
    Sanitizace u zdroje v `.github/scripts/update_history.py`.
    `stale:true` = záznam už není v aktuálním `feed.ics` (v archivu zůstává schválně).
-5. `gh` token zatím **nemá `workflow` scope** — úpravy `.github/workflows/*` selžou, dokud
-   Pavel nespustí `gh auth refresh -h github.com -s workflow`. Ostatní commity fungují.
+5. `gh` token nemá **`workflow` scope** — úpravy `.github/workflows/*` přes `gh api` selžou,
+   dokud Pavel nespustí `gh auth refresh -h github.com -s workflow`. **Přes `git push`
+   z klonu ale workflow soubory měnit jdou** (ověřeno 2026-08-13) — omezení je na `gh` tokenu,
+   ne na gitových přihlašovacích údajích.
 6. Po nasazení ověřuj přes `gh api .../contents/<file>` (raw.githubusercontent má ~5 min cache;
    Pages ~10 min).
 
@@ -120,6 +168,8 @@ platil dvojí konverzi.
   `history.json` dostal `firstSeen` / `lastSeen` / `stale`.
 - 2026-08-13: **šrafuje se jen skutečná dvojitá rezervace** (viz výš) — 15 matoucích
   šrafovaných buněk pryč, `.conflict-soft` zrušen.
+- 2026-08-13: **čtení čtyř feedů** v `update_history.py` (hub/multi mode, filtr vlastních
+  rezervací, kontinuita `uidh`, offline testy). Čeká na 3 secrety, zatím běží hub mode.
 
 ## Kontext
 
