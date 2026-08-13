@@ -1,5 +1,11 @@
 # Villa Rudolf — Booking Calendar
 
+> 🗺️ **Mapa celého systému Villa Rudolf:**
+> [`villa-rudolf-site/MAPA-SYSTEMU.md`](https://github.com/pavelkubiznak/villa-rudolf-site/blob/main/MAPA-SYSTEMU.md)
+> — kde co běží a které repo je živé. **Přečti ji dřív, než začneš.**
+> Tohle repo je v systému **dodavatel dat**: publikuje `data/history.json`, ze kterého
+> čte admin `/sprava/` na villarudolf.com. Změna formátu těch dat ovlivní i jeho.
+
 **Architekturu, datové schéma a bezpečnostní model najdeš v [`docs/CLAUDE-HANDOFF.md`](docs/CLAUDE-HANDOFF.md).**
 Tenhle soubor drží jen aktuální stav práce a provozní pravidla.
 
