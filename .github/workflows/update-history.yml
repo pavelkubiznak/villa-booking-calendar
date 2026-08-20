@@ -13,6 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Celá historie: regresní test v test_update_history.py porovnává současný
+          # skript s verzí před přechodem na čtyři feedy (`git show <starý commit>`).
+          # S mělkým klonem (depth=1) ten commit v runneru není — test se pak přeskočí
+          # a hub mode nikdo neohlídá. Repo je malé, plný klon nic nestojí.
+          fetch-depth: 0
 
       - name: Run tests
         run: python3 .github/scripts/test_update_history.py
