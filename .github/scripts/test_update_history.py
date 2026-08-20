@@ -20,15 +20,55 @@ import json, os, shutil, subprocess, sys, tempfile
 HERE     = os.path.dirname(os.path.abspath(__file__))
 REPO     = os.path.abspath(os.path.join(HERE, '..', '..'))
 SCRIPT   = os.path.join(HERE, 'update_history.py')
-OLD_REF  = '012b5df'          # last commit before the four-feed change
+# Last commit before the four-feed change. FULL sha on purpose: a short one can go
+# ambiguous as the repo grows, and `git show` would then fail for a reason that has
+# nothing to do with the code under test.
+OLD_REF  = '012b5df1e12d6f56b60a098bc1d2904c776a4677'
 
 FAILURES = []
+SKIPPED  = []
 
 
 def check(name, cond, detail=''):
     print(('  ok   ' if cond else '  FAIL ') + name + (f'  — {detail}' if detail and not cond else ''))
     if not cond:
         FAILURES.append(name)
+
+
+def skip(name, why):
+    """Not a failure — the check could not run in THIS environment.
+
+    Only ever for environment-dependent checks (see old_script_source). A skip must
+    never hide a real regression in the code, so it is loud in the log and listed in
+    the summary — but it does not fail the run.
+    """
+    print(f'  skip {name}  — {why}')
+    SKIPPED.append(name)
+
+
+def old_script_source():
+    """The pre-four-feed version of update_history.py, or None if it is out of reach.
+
+    The Action checks the repo out SHALLOW (depth 1), so OLD_REF is not in the runner's
+    object store and `git show` fails with "invalid object name". That is a property of
+    the checkout, not a regression — treating it as a test failure took the whole
+    workflow down (and with it the data update) from 2026-08-13 on. So: try to fetch the
+    one missing commit, and if even that fails, give up and let the caller skip.
+    """
+    def show():
+        return subprocess.run(['git', 'show', f'{OLD_REF}:.github/scripts/update_history.py'],
+                              cwd=REPO, capture_output=True, text=True)
+
+    r = show()
+    if r.returncode == 0:
+        return r.stdout, None
+
+    subprocess.run(['git', 'fetch', '--depth=1', 'origin', OLD_REF],
+                   cwd=REPO, capture_output=True, text=True)
+    r = show()
+    if r.returncode == 0:
+        return r.stdout, None
+    return None, r.stderr.strip().splitlines()[-1] if r.stderr.strip() else 'git show failed'
 
 
 def vevent(uid, summary, start, end):
@@ -76,10 +116,9 @@ HUB = calendar(
 
 def test_hub_mode_unchanged():
     print('\nHUB MODE — beze změny proti předchozí verzi')
-    old_src = subprocess.run(['git', 'show', f'{OLD_REF}:.github/scripts/update_history.py'],
-                             cwd=REPO, capture_output=True, text=True)
-    if old_src.returncode != 0:
-        check('recover previous script from git', False, old_src.stderr.strip())
+    old_src, err = old_script_source()
+    if old_src is None:
+        skip('hub mode vs. previous version', f'{OLD_REF[:7]} not in this checkout ({err})')
         return
 
     feed_path = os.path.join(tempfile.mkdtemp(prefix='vr-feed-'), 'hub.ics')
@@ -88,7 +127,7 @@ def test_hub_mode_unchanged():
 
     # Point the old script at the fixture via file:// (urlopen speaks it natively).
     old_path = os.path.join(os.path.dirname(feed_path), 'old_update_history.py')
-    patched = old_src.stdout.replace(
+    patched = old_src.replace(
         "ICAL_URL     = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'",
         f"ICAL_URL     = 'file://{feed_path}'")
     with open(old_path, 'w', encoding='utf-8') as f:
@@ -237,5 +276,8 @@ if __name__ == '__main__':
     test_uidh_continuity()
     test_failed_feed_aborts()
     test_dry_run_writes_nothing()
+    if SKIPPED:
+        print('\nPŘESKOČENO (neselhalo, jen se v tomhle prostředí nedalo spustit): '
+              + ', '.join(SKIPPED))
     print('\n' + ('FAILED: ' + ', '.join(FAILURES) if FAILURES else 'Vše prošlo.'))
     sys.exit(1 if FAILURES else 0)
