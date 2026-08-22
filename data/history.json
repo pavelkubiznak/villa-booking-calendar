@@ -468,6 +468,15 @@
     "stale": true
   },
   {
+    "uidh": "a86a13bddc736ce4",
+    "start": "2027-08-07",
+    "end": "2027-08-14",
+    "platform": "E-chalupy",
+    "firstSeen": "2026-08-22",
+    "lastSeen": "2026-08-22",
+    "stale": false
+  },
+  {
     "uidh": "7d554b0cd7bfedf3",
     "start": "2027-08-30",
     "end": "2027-09-05",
