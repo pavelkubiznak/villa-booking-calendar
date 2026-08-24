@@ -342,6 +342,15 @@
     "stale": false
   },
   {
+    "uidh": "f23e1762d220634a",
+    "start": "2027-03-04",
+    "end": "2027-03-07",
+    "platform": "Booking.com",
+    "firstSeen": "2026-08-24",
+    "lastSeen": "2026-08-24",
+    "stale": false
+  },
+  {
     "uidh": "c161e61dd8621520",
     "start": "2027-04-29",
     "end": "2027-05-02",
