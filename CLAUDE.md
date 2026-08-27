@@ -137,8 +137,9 @@ i workflow před ostrým během). `--dry-run` spočítá vše a nic nezapíše, 
 čte `<dir>/<kanál>.ics` místo sítě.
 
 **⏭️ Zbývá:** přidat do repo secrets `ICAL_URL_AIRBNB`, `ICAL_URL_BOOKING`, `ICAL_URL_FEWO`
-(a ideálně `ICAL_URL_ECHALUPY`, viz níž) a pak pustit workflow ručně s `--dry-run`, než se
-nechá zapisovat. Filtrovací pravidla jsou navržená podle toho, jak vypadá **hub** feed —
+(a ideálně `ICAL_URL_ECHALUPY`, viz níž) a pak pustit workflow ručně s přepínačem
+**dry run** (Actions → Update booking history → Run workflow → zaškrtnout `dry_run`),
+než se nechá zapisovat. Dry run přeskočí i commit krok, takže archiv zůstane netknutý. Filtrovací pravidla jsou navržená podle toho, jak vypadá **hub** feed —
 ostré feedy jednotlivých kanálů zatím nikdo neviděl, takže první běh je potřeba přečíst
 v logu a pravidla případně doladit. Proto ten hlasitý log a proto `--dry-run`.
 
