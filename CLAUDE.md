@@ -28,9 +28,9 @@ Teď každá polovina dne drží **pole** (`amAll` / `pmAll`) a překryv se kres
   Oddělovač tam musí zůstat: bez něj překryv dvou pobytů ze STEJNÉ platformy splyne
   v plnou barvu. Tooltip vypíše všechny dotčené pobyty.
 - **Banner** nad kalendářem — souhrn s odkazem, který skočí na dotčený měsíc.
-- **Dvě úrovně.** Oba pobyty živé ve `feed.ics` = červeně „dvojitá rezervace".
-  Aspoň jedna strana jen v archivu (`stale`) = „❓ překryv se starým záznamem" —
-  typicky propadlá předrezervace. Mazat se nesmí: hub odmítá import přes existující
+  Hlásí **jen** překryv dvou pobytů živých ve `feed.ics`, tj. skutečnou dvojitou
+  rezervaci. Překryv s archivním (`stale`) záznamem se v banneru nehlásí (viz níž);
+  zůstává v tooltipu buňky. Mazat archiv se nesmí: hub odmítá import přes existující
   překryv, takže i platná rezervace může z feedu zmizet.
 
 ### Šrafuje se JEN skutečná dvojitá rezervace (2026-08-13)
@@ -53,9 +53,24 @@ platná rezervace, archiv je jediný doklad, že tam pobyt je. Prázdná buňka 
 a to je horší chyba než šrafa. Skrývá se jen tam, kde je stejně překrytý živou rezervací
 (přeuložený pobyt dostane nové UID a ten starý osiří — to byl zdroj falešných poplachů).
 
-Oranžový čárkovaný rámeček + „?" (`.conflict-soft`) je **pryč z obou stránek**. Překryv se
-starým záznamem zůstává v tooltipu a v banneru nad kalendářem — v jednom místě místo
-rozmazaný přes 15 buněk.
+Oranžový čárkovaný rámeček + „?" (`.conflict-soft`) je **pryč z obou stránek**.
+
+### Oranžová sekce banneru zrušena taky (2026-08-27)
+
+Zbytkem po předchozím kroku byla v banneru sekce „❓ N překryvů se starým záznamem".
+Majitel se 27. 8. ptal, proč kalendář pořád hlásí překryvy, když žádný overbooking nemá —
+a data mu zase dala za pravdu: **6 hlášení, 0 skutečných konfliktů.** Všech 6 mělo aspoň
+jednu stranu mrtvou (dva přeuložené Booking pobyty 5/2027, zrcadlo Booking→E-chalupy
+8/2027, mrtvý FeWo blok 6/2027 a tři čistí duchové v 1/2028, kde není ani jedna živá
+rezervace). Ověřeno i přímo v `feed.ics`: **0 kolizí mezi 34 živými událostmi.**
+
+`renderConflictBanner()` teď filtruje `overlaps` na `o.real` a **když nezbude nic, banner
+se vůbec nezobrazí**. Informace se neztrácí — překryv s archivem je dál v tooltipu buňky
+(`ghostNote()`, proto ta funkce zůstává). Mrtvé CSS `.conflict-banner h3.cb-soft`
+a `.conflict-banner.soft` je smazané.
+
+**Proč to není zametení pod koberec:** planý poplach na 6 místech způsobí, že se přehlédne
+ten jeden skutečný. Banner je teď binární — červený = jednej.
 
 `getDayHalves()` / `shown()` / `halfStyle()` / `findOverlaps()` / `renderConflictBanner()` jsou
 v `index.html` i `owner.html` **duplicitně a musí zůstat identické** — obě stránky
@@ -168,6 +183,8 @@ platil dvojí konverzi.
   `history.json` dostal `firstSeen` / `lastSeen` / `stale`.
 - 2026-08-13: **šrafuje se jen skutečná dvojitá rezervace** (viz výš) — 15 matoucích
   šrafovaných buněk pryč, `.conflict-soft` zrušen.
+- 2026-08-27: **banner hlásí jen skutečnou dvojitou rezervaci** — oranžová sekce
+  „❓ překryv se starým záznamem" zrušena (6 planých hlášení, 0 konfliktů).
 - 2026-08-13: **čtení čtyř feedů** v `update_history.py` (hub/multi mode, filtr vlastních
   rezervací, kontinuita `uidh`, offline testy). Čeká na 3 secrety, zatím běží hub mode.
 
