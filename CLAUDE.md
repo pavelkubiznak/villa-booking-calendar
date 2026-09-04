@@ -147,6 +147,13 @@ platil dvojí konverzi.
 1. **Nikdy needitovat HTML přes GitHub web editor** — CM6 korumpuje backticky (`` ` `` → `f`).
    Nasazuj `git push` z tohoto klonu, nebo `gh api --method PUT .../contents/<path>` s base64.
 2. `data/*` píše GitHub Action — ruční změny `history.json` / `feed.ics` příští běh přepíše.
+   **Jediná výjimka je smazání mrtvého (`stale`) záznamu.** Záznam může vzniknout jen
+   z feedu nebo z předchozího `history.json` (`load_history()`), takže co v obou chybí,
+   se nevrátí. Přidání záznamu nebo změna hodnot se naopak přepíše vždy.
+   ⚠️ Záznam, který ve `feed.ics` **pořád je**, mazat nemá smysl: příští běh ho založí
+   znovu. `uidh` zůstane stejný (je to `sha256(UID)[:16]`, takže z téhož feedu vyjde
+   pořád stejně) a vazba na `/sprava/` se neutrhne — ztratí se ale **`firstSeen`**,
+   protože se dopočítá jako dnešek.
 3. Repo je **veřejné**. Do klientských HTML nikdy: e-chalupy feed URL/klíč, owner token, ceny v plaintextu.
 4. Veřejná data jsou **anonymizovaná** (od 2026-07): `history.json` =
    `{uidh,start,end,platform,firstSeen,lastSeen,stale}`, žádná jména hostů.
@@ -157,7 +164,10 @@ platil dvojí konverzi.
    z klonu ale workflow soubory měnit jdou** (ověřeno 2026-08-13) — omezení je na `gh` tokenu,
    ne na gitových přihlašovacích údajích.
 6. Po nasazení ověřuj přes `gh api .../contents/<file>` (raw.githubusercontent má ~5 min cache;
-   Pages ~10 min).
+   Pages ~10 min). **Z cloudové session `pavelkubiznak.github.io` nestáhneš** — blokuje ji
+   síťová politika prostředí (403 / `EGRESS_BLOCKED`, `curl` i fetch nástroje). Nasazení se
+   pak ověřuje nepřímo: úspěšný běh workflow „pages build and deployment" **nad daným
+   commitem** + obsah `origin/main`. Ostrý pohled do prohlížeče zůstává na majiteli.
 
 ## Nedávné změny
 
@@ -170,6 +180,13 @@ platil dvojí konverzi.
   šrafovaných buněk pryč, `.conflict-soft` zrušen.
 - 2026-08-13: **čtení čtyř feedů** v `update_history.py` (hub/multi mode, filtr vlastních
   rezervací, kontinuita `uidh`, offline testy). Čeká na 3 secrety, zatím běží hub mode.
+- 2026-09-04: ručně smazán osiřelý duch `3d35fe03b6a04aef` (Airbnb, 17.–19. 9. 2026).
+  V `feed.ics` nikdy nebyl, `firstSeen`/`lastSeen` obojí `null`, v repu už v prvním commitu
+  (2026-08-07) — původ se z dat určit nedá. **Co ten pobyt byl, ověřené není** (feedy jména
+  neposílají); sedí propadlá předrezervace i přeuložený pobyt, protože navazuje den na den
+  na živou Airbnb rezervaci 19.–26. 9. Jistotu dá jen Airbnb extranet. Smazání bylo
+  rozhodnutí majitele; prune (`end >= dnes−18 měsíců`) by ho jinak držel do března 2028.
+  Že smazání drží, viz výjimku v provozním pravidle 2.
 
 ## Kontext
 
