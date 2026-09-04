@@ -122,14 +122,18 @@ i workflow před ostrým během). `--dry-run` spočítá vše a nic nezapíše, 
 čte `<dir>/<kanál>.ics` místo sítě.
 
 **⏭️ Zbývá:** přidat do repo secrets `ICAL_URL_AIRBNB`, `ICAL_URL_BOOKING`, `ICAL_URL_FEWO`
-(a ideálně `ICAL_URL_ECHALUPY`, viz níž) a pak pustit workflow ručně s `--dry-run`, než se
-nechá zapisovat. Filtrovací pravidla jsou navržená podle toho, jak vypadá **hub** feed —
+a pak pustit workflow ručně s `--dry-run`, než se nechá zapisovat. Filtrovací pravidla jsou navržená podle toho, jak vypadá **hub** feed —
 ostré feedy jednotlivých kanálů zatím nikdo neviděl, takže první běh je potřeba přečíst
 v logu a pravidla případně doladit. Proto ten hlasitý log a proto `--dry-run`.
 
-⚠️ **Legacy e-chalupy URL i s klíčem je pořád v `update_history.py`** jako fallback, aby
-Action nepřestala běžet. V repu bylo odjakživa, takže je stejně prozrazené — ale patří pryč:
-nastav `ICAL_URL_ECHALUPY` jako secret a konstantu `LEGACY_HUB_URL` smaž.
+🔴 **`ICAL_URL_ECHALUPY` je od 2026-09-04 POVINNÝ.** Zapadlá e-chalupy URL i s klíčem
+sloužila jako fallback natvrdo v kódu; ta je pryč (`LEGACY_HUB_URL` smazána, viz níž).
+Bez toho secretu skript skončí `ERROR: no feed configured` a archiv **nepřepíše** —
+data zamrznou, ale nerozbijí se.
+
+⚠️ **Smazání z kódu ten klíč neodvolalo.** Repo je veřejné a URL v něm byla od prvního
+commitu, takže je pořád v git historii a v každém forku či mirroru. Jediná skutečná
+náprava je **přegenerovat feed na e-chalupy** a nový klíč dát rovnou jen do secretu.
 
 Cíl dál: vlastní feed publikovat **ven** a nechat platformy odebírat jeho, ne e-chalupy.
 
@@ -187,6 +191,10 @@ platil dvojí konverzi.
   na živou Airbnb rezervaci 19.–26. 9. Jistotu dá jen Airbnb extranet. Smazání bylo
   rozhodnutí majitele; prune (`end >= dnes−18 měsíců`) by ho jinak držel do března 2028.
   Že smazání drží, viz výjimku v provozním pravidle 2.
+- 2026-09-04: **`LEGACY_HUB_URL` smazána** z `update_history.py` (a ta samá URL i z
+  `test_update_history.py`, kde patchovala starou verzi skriptu — teď se matchuje podle
+  jména konstanty). `ICAL_URL_ECHALUPY` je tím pádem povinný secret. Klíč tím ale není
+  odvolaný, jen odstraněný z HEAD — patří přegenerovat, viz výš.
 
 ## Kontext
 
