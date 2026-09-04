@@ -15,7 +15,7 @@ Two things are worth proving here:
      a partially failed fetch.
 """
 
-import json, os, shutil, subprocess, sys, tempfile
+import json, os, re, shutil, subprocess, sys, tempfile
 
 HERE     = os.path.dirname(os.path.abspath(__file__))
 REPO     = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -126,10 +126,12 @@ def test_hub_mode_unchanged():
         f.write(HUB)
 
     # Point the old script at the fixture via file:// (urlopen speaks it natively).
+    # Matched by CONSTANT NAME, not by the old URL literal: that URL carries the feed
+    # key and this repo is public, so it must not be pasted back in here just to make
+    # a test pass. `count=1` keeps the rewrite to the definition line.
     old_path = os.path.join(os.path.dirname(feed_path), 'old_update_history.py')
-    patched = old_src.replace(
-        "ICAL_URL     = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'",
-        f"ICAL_URL     = 'file://{feed_path}'")
+    patched = re.sub(r"(?m)^ICAL_URL\s*=\s*.*$",
+                     f"ICAL_URL = 'file://{feed_path}'", old_src, count=1)
     with open(old_path, 'w', encoding='utf-8') as f:
         f.write(patched)
     check('previous script patched to read the fixture', 'file://' in patched)
