@@ -109,17 +109,15 @@ PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt')
 # failed runs in a row) never flips a live booking to "stale" by accident.
 STALE_AFTER_DAYS = 2
 
-# Legacy hub URL. It lived in this (public) repo before the feeds moved to secrets, so
-# it is already burned — kept ONLY as a fallback so the Action keeps running until
-# ICAL_URL_ECHALUPY is set. Set that secret and this constant stops being used.
-LEGACY_HUB_URL = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'
-
 # Feed roster. `env` holds the URL; the channel name IS the platform in MULTI MODE.
+# There is deliberately NO hardcoded fallback: a feed URL carries a private key and
+# this repo is public. An unset secret means the feed is skipped, and with no feed at
+# all the run aborts without touching the archive (see main()).
 FEEDS = (
     {'channel': 'Airbnb',      'env': 'ICAL_URL_AIRBNB'},
     {'channel': 'Booking.com', 'env': 'ICAL_URL_BOOKING'},
     {'channel': 'Fewo-direkt', 'env': 'ICAL_URL_FEWO'},
-    {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY', 'fallback': LEGACY_HUB_URL},
+    {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY'},
 )
 
 # SUMMARY texts that mark a blocked/mirrored day rather than a reservation of this
@@ -388,7 +386,7 @@ def resolve_feeds(fixtures=None):
             if os.path.exists(path):
                 out.append({'channel': f['channel'], 'path': path})
             continue
-        url = os.environ.get(f['env'], '').strip() or f.get('fallback', '')
+        url = os.environ.get(f['env'], '').strip()
         if url:
             out.append({'channel': f['channel'], 'url': url})
     return out
