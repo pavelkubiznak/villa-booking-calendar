@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '17 */3 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Jen spočítat a vypsat do logu, nic nezapsat (na první běh po přidání secretů)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -33,9 +38,12 @@ jobs:
           ICAL_URL_BOOKING:   ${{ secrets.ICAL_URL_BOOKING }}
           ICAL_URL_FEWO:      ${{ secrets.ICAL_URL_FEWO }}
           ICAL_URL_ECHALUPY:  ${{ secrets.ICAL_URL_ECHALUPY }}
-        run: python3 .github/scripts/update_history.py
+        run: python3 .github/scripts/update_history.py ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
 
       - name: Commit and push if changed
+        # Při --dry-run skript nic nezapsal, takže by tu stejně nebylo co commitnout.
+        # Krok se přesto přeskakuje explicitně, ať je z logu na první pohled vidět proč.
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

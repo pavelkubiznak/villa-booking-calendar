@@ -44,10 +44,8 @@
   /* Souhrn překryvů nad kalendářem — odkaz skočí na dotčený měsíc */
   .conflict-banner { display: none; background: #FDEDEC; border: 1px solid #E6B0AA; border-left: 4px solid #C0392B; border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; }
   .conflict-banner h3 { font-size: 13px; font-weight: 800; color: #943126; margin-bottom: 4px; }
-  .conflict-banner h3.cb-soft { color: #A04000; margin-top: 14px; }
   .conflict-banner .cb-hint { font-size: 11px; color: #A04000; margin-bottom: 9px; }
   /* Jen podezřelé překryvy (žádný živý) — celý banner ztlumit do oranžové. */
-  .conflict-banner.soft { background: #FEF5E7; border-color: #F0D9B5; border-left-color: #C47B1A; }
   .cb-list { display: flex; flex-direction: column; gap: 6px; }
   .cb-row { font-size: 12px; color: #7B241C; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
   .cb-row a { color: #C0392B; font-weight: 700; text-decoration: underline; cursor: pointer; white-space: nowrap; }
@@ -616,40 +614,30 @@ function pluralOverlap(n) {
 function renderConflictBanner(overlaps) {
   const box = document.getElementById('conflict-banner');
   if (!box) return;
-  if (!overlaps.length) {
+  // Hlásí se JEN skutečná dvojitá rezervace — oba pobyty jsou právě teď v živém feedu.
+  // Překryv s archivním záznamem (stale) se v banneru NEHLÁSÍ: je to skoro vždy planý
+  // poplach (přeuložený pobyt, propadlá předrezervace, zrušený termín). K 2026-08-27
+  // jich bylo 6 a ani jeden nebyl konflikt — jen hluk, kvůli kterému se přehlédne to
+  // skutečné. Informace nemizí, zůstává v tooltipu buňky (viz ghostNote).
+  const real = overlaps.filter(o => o.real);
+  if (!real.length) {
     box.style.display = 'none'; box.innerHTML = ''; box.className = 'conflict-banner'; return;
   }
-  // Překryv dvou živých pobytů = skutečná dvojitá rezervace (červeně).
-  // Překryv, kde aspoň jedna strana vypadla z feedu = nejspíš zbytek archivu (oranžově).
-  const real    = overlaps.filter(o => o.real);
-  const suspect = overlaps.filter(o => !o.real);
 
   const row = o => {
     const id = `month-${o.start.getFullYear()}-${o.start.getMonth()}`;
     return `<div class="cb-row">` +
       `<a onclick="jumpToMonth('${id}')">${fmtD(o.start)} → ${fmtD(o.end)}</a>` +
-      `<span><span class="cb-plat">${bLabel(o.a)}</span>${ghostNote(o.a)} ${fmtD(o.a.start)} → ${fmtD(o.a.end)}` +
-      ` &nbsp;×&nbsp; <span class="cb-plat">${bLabel(o.b)}</span>${ghostNote(o.b)} ${fmtD(o.b.start)} → ${fmtD(o.b.end)}</span>` +
+      `<span><span class="cb-plat">${bLabel(o.a)}</span> ${fmtD(o.a.start)} → ${fmtD(o.a.end)}` +
+      ` &nbsp;×&nbsp; <span class="cb-plat">${bLabel(o.b)}</span> ${fmtD(o.b.start)} → ${fmtD(o.b.end)}</span>` +
       `</div>`;
   };
 
-  let html = '';
-  if (real.length) {
-    html += `<h3>⚠️ ${real.length} ${pluralOverlap(real.length)} rezervací</h3>` +
-      `<p class="cb-hint">Dva pobyty na stejný termín a oba jsou právě teď v živém feedu. ` +
-      `Tohle je potřeba řešit na platformách.</p>` +
-      `<div class="cb-list">${real.map(row).join('')}</div>`;
-  }
-  if (suspect.length) {
-    html += `<h3 class="cb-soft">❓ ${suspect.length} ${pluralOverlap(suspect.length)} se starým záznamem</h3>` +
-      `<p class="cb-hint">Aspoň jedna strana už v živém feedu není — typicky propadlá předrezervace, ` +
-      `zrušený nebo přeuložený pobyt. Většinou planý poplach. Mazat se ale nesmí: hub odmítá ` +
-      `importovat rezervaci přes existující překryv, takže i platná rezervace může z feedu zmizet. ` +
-      `Ověřte v extranetu platformy.</p>` +
-      `<div class="cb-list">${suspect.map(row).join('')}</div>`;
-  }
-  box.innerHTML = html;
-  box.className = 'conflict-banner' + (real.length ? '' : ' soft');
+  box.innerHTML = `<h3>⚠️ ${real.length} ${pluralOverlap(real.length)} rezervací</h3>` +
+    `<p class="cb-hint">Dva pobyty na stejný termín a oba jsou právě teď v živém feedu. ` +
+    `Tohle je potřeba řešit na platformách.</p>` +
+    `<div class="cb-list">${real.map(row).join('')}</div>`;
+  box.className = 'conflict-banner';
   box.style.display = 'block';
 }
 
