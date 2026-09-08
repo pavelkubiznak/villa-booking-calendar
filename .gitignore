@@ -1,0 +1,6 @@
+# Python cache z běhu testů (python3 .github/scripts/test_update_history.py)
+__pycache__/
+*.pyc
+# OS / editor
+.DS_Store
+Thumbs.db
