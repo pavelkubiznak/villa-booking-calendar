@@ -94,6 +94,47 @@ uidh silently breaks that link for every live reservation.
 So when a newly-seen event exactly matches an archived entry on (start, end, platform),
 this script ADOPTS the archived uidh instead of inserting a new record. Each adoption is
 logged. One archived uidh can be adopted at most once per run.
+
+================================================================================
+DIRECT SALES / PRE-BOOKINGS (2026-09-09)
+================================================================================
+A stay sold directly — phone, e-mail, an e-chalupy inquiry answered with a proforma
+invoice — never appears in ANY platform feed. Until now it therefore did not exist
+for this repo, and through it for villarudolf.com, whose public availability calendar
+reads exactly this history.json. That is how 14.–21. 8. 2027 went missing: invoiced,
+paid, and still offered as free on the website.
+
+So on top of the feeds this script now reads ONE more source — the anonymized RPC
+`vr_public_holds()` on Supabase (the /sprava/ database), which returns nothing but
+
+    {uidh, start, end, kind, holdUntil}         kind = 'hold' | 'direct'
+
+  hold    a pre-booking: a proforma invoice was issued and holds the dates until
+          `holdUntil` (due date + grace). Drawn "provisionally" and NOT counted as a
+          cleaning day — see index.html.
+  direct  a confirmed direct booking. An ordinary stay in every respect.
+
+Their `platform` is the fifth value 'Přímá' and their uidh is minted by the database as
+sha256('vr-hold:' || id)[:16] — same shape as every other key, different namespace, so
+it merges through feed.ics / history.json / localStorage / vr_bookings without a single
+special case downstream.
+
+Three rules keep this from causing the noise the calendar was just cleaned of:
+
+  * A hold whose dates are IDENTICAL to a live feed event is not published. That is the
+    owner having blocked the same term on a platform — one stay, not two, and emitting
+    both would render a red double booking.
+  * Holds never go stale. They are absent from every feed by definition; expiry is the
+    database's job (`vr_public_holds()` simply stops returning an expired hold, so the
+    term frees itself with no cron anywhere).
+  * If the RPC fails, the holds already in the archive are LEFT ALONE and the run
+    continues. Unlike a failed feed this is not fatal: the worst case is a term staying
+    blocked slightly too long, which is the safe direction.
+
+They are deliberately NOT written into feed.ics. That file is the sanitized mirror of
+what the platforms say; publishing our own bookings outward is a separate step (see
+"Cíl dál" in CLAUDE.md), and mixing the two would make it impossible to tell which is
+which.
 """
 
 import json, os, re, sys, hashlib
@@ -103,7 +144,12 @@ from urllib.request import urlopen, Request
 HISTORY_FILE = 'data/history.json'
 FEED_FILE    = 'data/feed.ics'
 
-PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt')
+# 'Přímá' = přímý prodej (předrezervace i potvrzená přímá rezervace). Nepochází z
+# žádného feedu, chodí z Supabase — viz DIRECT SALES v hlavičce.
+PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt', 'Přímá')
+
+HOLD_PLATFORM = 'Přímá'
+HOLD_KINDS    = ('hold', 'direct')
 
 # The Action runs every ~3 h. Two days of grace means a transient outage (or a few
 # failed runs in a row) never flips a live booking to "stale" by accident.
@@ -113,6 +159,17 @@ STALE_AFTER_DAYS = 2
 # it is already burned — kept ONLY as a fallback so the Action keeps running until
 # ICAL_URL_ECHALUPY is set. Set that secret and this constant stops being used.
 LEGACY_HUB_URL = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'
+
+# Direct sales come from the /sprava/ database, not from a feed. The anon key below is
+# the PUBLIC Supabase anon key (it is already published on villarudolf.com and in the
+# n8n workflow exports) and `vr_public_holds()` returns anonymized dates only — no name,
+# no contact, no amount. Both are overridable so the script can be pointed elsewhere;
+# VR_HOLDS_URL='' switches direct sales off entirely.
+HOLDS_URL_DEFAULT = 'https://fpknbrzbqpalguajskut.supabase.co/rest/v1/rpc/vr_public_holds'
+HOLDS_ANON_DEFAULT = (
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZwa25icnpi'
+    'cXBhbGd1YWpza3V0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczMDEyMTAsImV4cCI6MjA5Mjg3NzIxMH0'
+    '.goat1c7Y1YnpTq7_XyMD3LROElkVI6E27f0B3EG8btA')
 
 # Feed roster. `env` holds the URL; the channel name IS the platform in MULTI MODE.
 FEEDS = (
@@ -310,8 +367,17 @@ def load_history():
         plat = e.get('platform')
         if plat not in PLATFORMS:
             plat = 'E-chalupy'
-        history[uidh] = {'uidh': uidh, 'start': e['start'], 'end': e['end'], 'platform': plat,
-                         'firstSeen': e.get('firstSeen'), 'lastSeen': e.get('lastSeen')}
+        entry = {'uidh': uidh, 'start': e['start'], 'end': e['end'], 'platform': plat,
+                 'firstSeen': e.get('firstSeen'), 'lastSeen': e.get('lastSeen')}
+        # Přímý prodej se do archivu nepíše z feedu, ale z Supabase. Pole se proto
+        # musí přenést beze změny: kdyby RPC v tomhle běhu selhalo, jsou tyhle řádky
+        # jediné, co o předrezervaci ví — a bez `kind` by z nich příští běh udělal
+        # obyčejné (a hned zestárlé) rezervace.
+        if e.get('kind') in HOLD_KINDS:
+            entry['kind'] = e['kind']
+            if e.get('holdUntil'):
+                entry['holdUntil'] = e['holdUntil']
+        history[uidh] = entry
     return history
 
 
@@ -342,6 +408,117 @@ def adopt_existing_uidh(events, history, today_s):
         adopted.append((old['uidh'], e['uidh'], e['start'], e['end'], e['platform']))
         e['uidh'] = old['uidh']
     return adopted
+
+
+def fetch_holds(fixtures=None):
+    """Direct sales from Supabase — or None when there is no source to read.
+
+    None and [] mean different things and the caller relies on it: [] is "the database
+    says there are no live holds" (existing ones get dropped), None is "could not ask"
+    (existing ones are left exactly as they are). Never raises — a database outage must
+    not take down the feed update that is this script's main job.
+
+    With --fixtures the file <dir>/holds.json stands in for the network, so the whole
+    pipeline stays testable offline. A missing fixture file means None, i.e. the tests
+    that predate this feature keep producing byte-identical output."""
+    if fixtures is not None:
+        path = os.path.join(fixtures, 'holds.json')
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, encoding='utf-8') as fh:
+                return json.load(fh)
+        except Exception as e:
+            print(f'::warning::holds fixture unreadable: {e}')
+            return None
+
+    url = os.environ.get('VR_HOLDS_URL', HOLDS_URL_DEFAULT).strip()
+    if not url:
+        return None
+    key = os.environ.get('VR_SUPABASE_ANON', HOLDS_ANON_DEFAULT).strip()
+    try:
+        req = Request(url, data=b'{}', headers={
+            'Content-Type': 'application/json',
+            'apikey': key,
+            'Authorization': 'Bearer ' + key,
+            'User-Agent': 'Mozilla/5.0 (compatible; villa-calendar-bot/1.0)',
+        })
+        with urlopen(req, timeout=30) as r:
+            data = json.loads(r.read().decode('utf-8', errors='replace'))
+    except Exception as e:
+        print(f'::warning::direct sales (vr_public_holds) unavailable: {e} — '
+              f'keeping the ones already in the archive')
+        return None
+    if not isinstance(data, list):
+        print('::warning::vr_public_holds returned something that is not a list — ignored')
+        return None
+    return data
+
+
+def valid_holds(rows):
+    """Drop anything malformed rather than letting it into the public archive."""
+    out = []
+    for h in rows or []:
+        uidh, start, end = h.get('uidh'), h.get('start'), h.get('end')
+        kind = h.get('kind')
+        if not (isinstance(uidh, str) and re.fullmatch(r'[0-9a-f]{16}', uidh)):
+            print(f'::warning::hold with a malformed uidh skipped: {uidh!r}'); continue
+        if not (ics_to_date(str(start).replace('-', '')) and ics_to_date(str(end).replace('-', ''))):
+            print(f'::warning::hold {uidh} has unusable dates ({start}→{end}) — skipped'); continue
+        if end <= start:
+            print(f'::warning::hold {uidh} ends before it starts ({start}→{end}) — skipped'); continue
+        if kind not in HOLD_KINDS:
+            print(f'::warning::hold {uidh} has unknown kind {kind!r} — skipped'); continue
+        out.append({'uidh': uidh, 'start': start, 'end': end, 'kind': kind,
+                    'holdUntil': h.get('holdUntil')})
+    return out
+
+
+def apply_holds(history, holds, feed_events, today_s):
+    """Merge direct sales into the archive. Returns a log of what happened.
+
+    `holds is None` (database unreachable) leaves every existing hold untouched — the
+    one case where doing nothing is right. Otherwise the set is REPLACED: a hold that
+    expired or was cancelled disappears from the database and must disappear from the
+    calendar too, which is exactly how a term frees itself without any scheduled job.
+
+    A hold whose dates match a live feed event day-for-day is dropped: that is this same
+    stay blocked on a platform, and publishing both would draw a red double booking over
+    a term that is perfectly fine."""
+    if holds is None:
+        kept = sum(1 for e in history.values() if e.get('kind') in HOLD_KINDS)
+        return [f'direct sales not read this run — {kept} existing entr'
+                f'{"y" if kept == 1 else "ies"} left untouched']
+
+    log = []
+    # firstSeen se odečte PŘED úklidem — jinak by každý běh tvrdil, že předrezervaci
+    # vidí poprvé dnes.
+    was = {k: e for k, e in history.items() if e.get('kind') in HOLD_KINDS}
+    for uidh in was:
+        del history[uidh]
+
+    live_spans = {(e['start'], e['end']) for e in feed_events}
+    for h in holds:
+        if (h['start'], h['end']) in live_spans:
+            log.append(f"{h['start']}→{h['end']} ({h['kind']}) not published — the same "
+                       f"dates are already blocked on a platform")
+            continue
+        prev = was.get(h['uidh'], {})
+        entry = {
+            'uidh':      h['uidh'],
+            'start':     h['start'],
+            'end':       h['end'],
+            'platform':  HOLD_PLATFORM,
+            'firstSeen': prev.get('firstSeen') or today_s,
+            'lastSeen':  today_s,
+            'kind':      h['kind'],
+        }
+        if h.get('holdUntil'):
+            entry['holdUntil'] = h['holdUntil']
+        history[h['uidh']] = entry
+        log.append(f"{h['start']}→{h['end']} {h['kind']}"
+                   + (f" (drží do {h['holdUntil']})" if h.get('holdUntil') else ''))
+    return log
 
 
 def report_overlaps(entries, today_s):
@@ -510,6 +687,13 @@ def main():
         }
     print(f'New: {new}, total: {len(history)}')
 
+    # Přímý prodej (předrezervace + potvrzené přímé rezervace) ze Supabase. Až ZA
+    # feedy, aby se dalo poznat, který termín je zároveň zablokovaný na platformě.
+    holds_raw = fetch_holds(fixtures)
+    holds = None if holds_raw is None else valid_holds(holds_raw)
+    for line in apply_holds(history, holds, events, today_s):
+        print('  direct: ' + line)
+
     # Prune older than 18 months
     m, y = now.month - 18, now.year
     while m <= 0: m += 12; y -= 1
@@ -518,7 +702,10 @@ def main():
     print(f'After 18-month prune (cutoff {cutoff}): {len(history)} entries')
 
     for e in history.values():
-        e['stale'] = is_stale(e.get('lastSeen'), today)
+        # Přímý prodej se z feedu nepotvrzuje — jeho platnost hlídá databáze
+        # (`vr_public_holds()` propadlý hold prostě nevrátí), takže by ho stárnutí
+        # jen umazalo na ducha.
+        e['stale'] = False if e.get('kind') in HOLD_KINDS else is_stale(e.get('lastSeen'), today)
 
     output = sorted(history.values(), key=lambda e: e['start'])
 

@@ -39,13 +39,21 @@ Pole objektů, řazeno dle `start`. **Žádná jména hostů, žádné kontakty.
   "firstSeen": "2026-08-04", "lastSeen": "2026-08-04", "stale": false }
 ```
 
+Přímý prodej (nechodí z žádného feedu, viz „Předrezervace" níž) má navíc `kind`:
+
+```json
+{ "uidh": "9a1c…", "start": "2027-08-14", "end": "2027-08-21", "platform": "Přímá",
+  "kind": "hold", "holdUntil": "2026-10-01",
+  "firstSeen": "2026-09-09", "lastSeen": "2026-09-09", "stale": false }
+```
+
 Sémantika:
 - `start` = check-in (příjezd ~15:00), `end` = check-out (odjezd ~10:00) — **`end` je den odjezdu,
   noc z `end-1` na `end` je poslední obsazená**; počet nocí = `end − start` ve dnech.
 - `uidh` = **prvních 16 hex znaků z sha256(uid)** (viz „Hashing" níže). Deterministický klíč
   pro merge napříč feed.ics / history.json / localStorage; **nelze zpětně dohledat** číslo
   rezervace platformy. Je to jediný unikátní klíč (merge = last-write-wins).
-- `platform` ∈ `Airbnb | Booking.com | E-chalupy | Fewo-direkt` — je to **explicitní pole**
+- `platform` ∈ `Airbnb | Booking.com | E-chalupy | Fewo-direkt | Přímá` — je to **explicitní pole**
   (dřív se odvozovalo z UID; po hashování už UID platformu neprozradí, proto se posílá zvlášť
   a ve feed.ics je nese `SUMMARY`).
 - **Žádné `guest` ani `uid` pole už neexistuje.** Šum `Airbnb (Not available)` je odfiltrovaný
@@ -53,6 +61,9 @@ Sémantika:
 - `firstSeen` / `lastSeen` = datum běhu Actionu, kdy se `uidh` ve feedu objevil poprvé / naposled.
   `lastSeen: null` = záznam je starší než zavedení sledování a ve feedu už není.
 - `stale: true` = feed ho neuvádí déle než `STALE_AFTER_DAYS` (2 dny — přežije výpadek Actionu).
+- `kind` ∈ `hold | direct` — **jen u přímého prodeje**, u záznamů z feedu chybí.
+  `hold` = předrezervace (vystavená zálohová faktura), `holdUntil` = do kdy drží termín.
+  `direct` = potvrzená přímá rezervace, chová se jako běžný pobyt.
 - Archiv se prořezává na **18 měsíců** zpět (dle `end`).
 - Jméno hosta si majitel dohledá v extranetu platformy podle data + platformy.
 
@@ -102,6 +113,41 @@ uidh = sha256(uid_bytes_utf8).hexdigest()[:16]      # lowercase hex, prvních 16
   `⟨není ve feedu⟩`. Ručně zadané pobyty (`uid` začíná `manual-`) se za duchy NEPOVAŽUJÍ —
   ve feedu nikdy nebudou. Události z `feed.ics` mají vždy `stale:false` a v `mergeHistory`
   přebijí archiv (fresh se merguje jako poslední).
+
+## Předrezervace a přímý prodej (2026-09)
+
+Pobyt prodaný napřímo (telefon, e-mail, poptávka z e-chalup vyřízená zálohovou fakturou)
+**není v žádném iCal feedu** a do 9/2026 tedy pro tenhle repo — a přes něj i pro veřejnou
+dostupnost na villarudolf.com — vůbec neexistoval. Tak zmizel termín 14.–21. 8. 2027:
+faktura vystavená i uhrazená, a web ten týden dál nabízel jako volný.
+
+Zdroj pravdy je proto **`/sprava/`** (Supabase, tabulka `vr_holds`). Action k feedům přičítá
+jeden RPC dotaz — anonymizovanou funkci `vr_public_holds()`, která vrací **jen**
+`{uidh, start, end, kind, holdUntil}`: žádné jméno, kontakt, částku ani číslo faktury.
+
+| | |
+|---|---|
+| `uidh` | razí databáze jako `sha256('vr-hold:' + id)[:16]` — jiný jmenný prostor, stejný tvar, takže se merguje jako každý jiný klíč |
+| `platform` | vždy `Přímá` (fialová `#8E44AD`, světlá `#F4ECF7`) |
+| propadnutí | **líné, bez cronu** — `vr_public_holds()` propadlý hold prostě nevrátí, termín se tím uvolní sám |
+| stárnutí | přímý prodej **nikdy** nezestárne na ducha (ve feedu ze své podstaty není) |
+| feed.ics | přímý prodej se do něj **nepíše** — ten soubor je zrcadlo toho, co říkají platformy |
+
+Tři pravidla, aby z toho nebyl šum, který se z kalendáře v srpnu pracně odstraňoval:
+
+1. **Hold se shodným termínem jako živá událost z feedu se nepublikuje.** To je majitel,
+   který si ten samý termín zablokoval na platformě — jeden pobyt, ne dva; vydat oba
+   by nakreslilo červenou dvojitou rezervaci přes úplně pořádkový termín.
+2. **Když RPC selže, holdy v archivu se nechají být** a běh pokračuje. Na rozdíl od
+   selhaného feedu to není fatální: nejhorší následek je termín držený o něco déle,
+   což je bezpečný směr.
+3. **Předrezervace není úklid.** `getDayHalves()` vrací `isCleaning` (odjezd pobytu,
+   který se opravdu uskuteční) — u holdu se nekreslí „↑10" a nezapočítá se do
+   přehledu úklidů ani do majitelských KPI.
+
+Vzhled: světlá výplň + **čárkovaný fialový obrys** (`.half-*.pre`). Schválně jiný jazyk než
+duch (tečkovaně, „vypadlo z feedu") — dvě různé věci ve stejném vzhledu byla přesně ta past,
+kvůli které se rušilo šrafování.
 
 ## Překryvy rezervací — dvě úrovně
 
