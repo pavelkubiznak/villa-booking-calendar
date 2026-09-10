@@ -178,6 +178,30 @@ Channel manager (Lodgify ap.) je **zamítnutý**: vyžaduje jednotnou měnu nap�
 CZK nepodporuje → Booking by musel prodávat v EUR, výplata by přišla v CZK a majitel by
 platil dvojí konverzi.
 
+## Ikona na ploše iPhonu (hotovo 2026-09-10)
+
+Obě stránky jdou přidat na plochu (Safari → **Sdílet → Přidat na plochu**) a spustí se
+jako appka bez adresního řádku:
+
+| stránka | ikona | název pod ikonou | manifest |
+|---|---|---|---|
+| `index.html` (úklid) | **modrá** `icons/icon-*.png` | Kalendář | `manifest.webmanifest` |
+| `owner.html` (majitel) | **zlatá** `icons/owner-icon-*.png` | Majitel | `owner.webmanifest` |
+
+Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se nedaly rozeznat.
+
+- **PNG se commitují**, nekreslí se za běhu. Zdroj je `icons/mkicons.py` (Pillow, vektorová
+  kresba do 4× plátna a zmenšení). Při změně barev pusť skript znovu, PNG přepíše na místě.
+  iOS bere pro `apple-touch-icon` **jen PNG** — SVG neumí, proto ta cesta přes generátor.
+- **Standalone nemá reload** prohlížeče. Data se tedy obnovují jen tlačítkem 🔄 Obnovit
+  v hlavičce stránky — to tam musí zůstat, jinak by na ploše šla dostat zaseknutá cache.
+- **Okraj stránky drží proměnná `--pad`**, media queries mění jen ji; `body` k ní přičítá
+  `env(safe-area-inset-*)`, aby obsah nelezl pod výřez a domovský indikátor. Nevracej
+  `body { padding: … }` zpátky do media queries.
+- ⚠️ **`owner.html` se po každém studeném startu zeptá na token.** Je to schválně:
+  token se drží jen v paměti stránky (`sessionToken`), nikde se neukládá a z URL se maže.
+  Ikona na ploše na tom nic nemění — ušetří jen hledání odkazu, ne přihlášení.
+
 ## Provozní pravidla (DŮLEŽITÉ)
 
 1. **Nikdy needitovat HTML přes GitHub web editor** — CM6 korumpuje backticky (`` ` `` → `f`).
@@ -218,6 +242,8 @@ platil dvojí konverzi.
   a v `owner.html` opraveno zahazování příznaku `stale` (archiv tam svítil červeně).
 - 2026-08-13: **čtení čtyř feedů** v `update_history.py` (hub/multi mode, filtr vlastních
   rezervací, kontinuita `uidh`, offline testy). Čeká na 3 secrety, zatím běží hub mode.
+- 2026-09-10: **ikona na plochu iPhonu** pro obě stránky (viz výš) — apple-touch-icon,
+  manifest, standalone režim a respektování safe-area.
 - 2026-09-04: ručně smazán osiřelý duch `3d35fe03b6a04aef` (Airbnb, 17.–19. 9. 2026).
   V `feed.ics` nikdy nebyl, `firstSeen`/`lastSeen` obojí `null`, v repu už v prvním commitu
   (2026-08-07) — původ se z dat určit nedá. **Co ten pobyt byl, ověřené není** (feedy jména
