@@ -44,10 +44,7 @@
   /* Souhrn překryvů nad kalendářem — odkaz skočí na dotčený měsíc */
   .conflict-banner { display: none; background: #FDEDEC; border: 1px solid #E6B0AA; border-left: 4px solid #C0392B; border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; }
   .conflict-banner h3 { font-size: 13px; font-weight: 800; color: #943126; margin-bottom: 4px; }
-  .conflict-banner h3.cb-soft { color: #A04000; margin-top: 14px; }
   .conflict-banner .cb-hint { font-size: 11px; color: #A04000; margin-bottom: 9px; }
-  /* Jen podezřelé překryvy (žádný živý) — celý banner ztlumit do oranžové. */
-  .conflict-banner.soft { background: #FEF5E7; border-color: #F0D9B5; border-left-color: #C47B1A; }
   .cb-list { display: flex; flex-direction: column; gap: 6px; }
   .cb-row { font-size: 12px; color: #7B241C; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
   .cb-row a { color: #C0392B; font-weight: 700; text-decoration: underline; cursor: pointer; white-space: nowrap; }
@@ -88,9 +85,9 @@
   .day-cell.conflict { outline: 2px solid #C0392B; outline-offset: -2px; z-index: 3; }
   .day-cell.conflict .day-num { color: #C0392B; font-weight: 800; }
   .day-cell.conflict .day-num::after { content: '⚠'; font-size: 8px; vertical-align: super; margin-left: 1px; }
-  /* Překryv se starým záznamem se v mřížce NEOZNAČUJE (dřív oranžový čárkovaný
-     rámeček + „?"). Pro úklid to byl šum — den odjezdu je den úklidu bez ohledu
-     na kolizi v archivu. Zůstává v tooltipu a v banneru nad kalendářem. */
+  /* Se starým záznamem se překryv neoznačuje NIKDE (dřív oranžový čárkovaný
+     rámeček + „?", pak aspoň tooltip a banner). Co není v živém feedu, není
+     dvojitá rezervace — viz isGhost(). */
 
   /* Half-day split — top = checkout (↑ morning), bottom = checkin (↓ afternoon) */
   .cell-halves { display: flex; flex-direction: column; flex: 1; min-height: 22px; }
@@ -121,7 +118,8 @@
   .half-am.dark-txt, .half-pm.dark-txt { color: rgba(100, 65, 0, 0.9); }
   /* Šrafovaný půlden (překryv) — čas potřebuje obrys, pruhy jsou pod ním pestré */
   .half-am.clash, .half-pm.clash { color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.95); }
-  /* Duch (vypadl z feedu) — světlé pozadí platformy, tečkovaný obrys, tmavý text.
+  /* Proběhlý pobyt z archivu (už není ve feedu) — světlé pozadí platformy,
+     tečkovaný obrys, tmavý text.
      Musí být za .clash i .dark-txt, aby při shodné specificitě vyhrálo. */
   .half-am.ghost, .half-pm.ghost {
     color: rgba(0,0,0,0.5); text-shadow: none;
@@ -221,7 +219,7 @@
   <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
 </div>
-<p class="legend-note">Horní půlden = 🧹 odjezd ↑ 10:00 · Dolní půlden = příjezd ↓ 15:00 · Šrafovaný půlden = ⚠ překryv · Světlý s tečkovaným obrysem = záznam už není v živém feedu · Přejetím myší zobrazíš platformu rezervace</p>
+<p class="legend-note">Horní půlden = 🧹 odjezd ↑ 10:00 · Dolní půlden = příjezd ↓ 15:00 · Šrafovaný půlden = ⚠ dvojitá rezervace · Světlý s tečkovaným obrysem = proběhlý pobyt z archivu · Přejetím myší zobrazíš platformu rezervace</p>
 
 <!-- ── Souhrn překryvů rezervací (skryté, dokud žádné nejsou) ──────────── -->
 <div id="conflict-banner" class="conflict-banner"></div>
@@ -538,14 +536,26 @@ function getDayHalves(y, m, d, bookings) {
     outGuest:   outs[0] || null,
     inGuest:    ins[0]  || null,
     stayGuest:  mids[0] || null,
-    conflict:   am.length > 1 || pm.length > 1,
-    // Skutečný poplach je jen překryv DVOU ŽIVÝCH pobytů. Je-li aspoň jedna strana
-    // duch (vypadl z feedu), je to skoro jistě zbytek archivu — jiná barva, ne červená.
-    conflictReal: am.filter(b => !b.stale).length > 1 || pm.filter(b => !b.stale).length > 1,
-    hasGhost:   all.some(b => b.stale),
+    // Překryv = dva pobyty v jednom půldni, oba v živém feedu. Nepotvrzené
+    // záznamy sem nedojdou (odfiltruje je renderCalendar), archivní ano — a ty
+    // za poplach nestojí, proto se počítají jen ty živé.
+    conflict:   am.filter(b => !b.stale).length > 1 || pm.filter(b => !b.stale).length > 1,
     any:        !!(am.length || pm.length),
   };
 }
+
+// ── Nepotvrzené záznamy ──────────────────────────────────────────────────────
+// „Duch" = pobyt, který v aktuálním feedu není, i když tam pořád patří (končí dnes
+// nebo později). Skoro vždy jde o propadlou předrezervaci nebo storno — v kalendáři
+// ale vypadal jako druhá rezervace na termín, kde ve skutečnosti žádná není. Od
+// 2026-09 se proto nezobrazuje NIKDE: ani v mřížce, ani v tooltipu, ani v souhrnu
+// překryvů, ani v obsazenosti a v přehledu úklidů.
+// POZOR na minulé pobyty: feed nese jen dnešek a budoucnost, takže každý proběhlý
+// pobyt zestárne na stale sám od sebe. Ten duch NENÍ — je to archiv a kreslí se dál
+// (světle), jinak by z kalendáře i ze statistik zmizela celá historie.
+// Nic se neztrácí: skryté záznamy zůstávají v history.json i v panelu
+// „Správa uložené historie" (označené „není ve feedu").
+function isGhost(b, today) { return !!b.stale && b.end > today; }
 
 // Co se z půldne opravdu kreslí (2026-08, po stížnosti na nesrozumitelné šrafování).
 // Mrtvý záznam ustupuje živé rezervaci: když platforma pobyt přeuloží, dostane nové
@@ -590,12 +600,14 @@ function findOverlaps(bookings) {
     for (let j = i + 1; j < bookings.length; j++) {
       const a = bookings[i], b = bookings[j];
       if (a.uid && b.uid && a.uid === b.uid) continue;
+      // Co není v živém feedu, není dvojitá rezervace, kterou by šlo na platformě
+      // řešit. Nepotvrzené záznamy jsou už odfiltrované, tohle odstíní archiv.
+      if (a.stale || b.stale) continue;
       if (!(a.start < b.end && b.start < a.end)) continue;
       out.push({
         a: a, b: b,
         start: a.start > b.start ? a.start : b.start,
         end:   a.end   < b.end   ? a.end   : b.end,
-        real:  !a.stale && !b.stale,   // obě strany živé = opravdu dvojitá rezervace
       });
     }
   }
@@ -606,9 +618,6 @@ function findOverlaps(bookings) {
 function bLabel(b) {
   return (b.uid && b.uid.startsWith('manual-')) ? `${b.platform} (ruční)` : b.platform;
 }
-// Duch = záznam, který už není v živém feedu (propadlá předrezervace, zrušený pobyt,
-// nebo upravená rezervace, které se změnilo UID). V archivu zůstává schválně.
-function ghostNote(b) { return b.stale ? ' ⟨není ve feedu⟩' : ''; }
 function pluralOverlap(n) {
   return n === 1 ? 'překryv' : (n >= 2 && n <= 4 ? 'překryvy' : 'překryvů');
 }
@@ -619,37 +628,23 @@ function renderConflictBanner(overlaps) {
   if (!overlaps.length) {
     box.style.display = 'none'; box.innerHTML = ''; box.className = 'conflict-banner'; return;
   }
-  // Překryv dvou živých pobytů = skutečná dvojitá rezervace (červeně).
-  // Překryv, kde aspoň jedna strana vypadla z feedu = nejspíš zbytek archivu (oranžově).
-  const real    = overlaps.filter(o => o.real);
-  const suspect = overlaps.filter(o => !o.real);
-
+  // Sem se dostane jen překryv dvou pobytů z živého feedu = skutečná dvojitá
+  // rezervace. Oranžová větev „překryv se starým záznamem" je zrušená (2026-09):
+  // půlka archivu je stale a majitele to pokaždé vyděsilo úplně zbytečně.
   const row = o => {
     const id = `month-${o.start.getFullYear()}-${o.start.getMonth()}`;
     return `<div class="cb-row">` +
       `<a onclick="jumpToMonth('${id}')">${fmtD(o.start)} → ${fmtD(o.end)}</a>` +
-      `<span><span class="cb-plat">${bLabel(o.a)}</span>${ghostNote(o.a)} ${fmtD(o.a.start)} → ${fmtD(o.a.end)}` +
-      ` &nbsp;×&nbsp; <span class="cb-plat">${bLabel(o.b)}</span>${ghostNote(o.b)} ${fmtD(o.b.start)} → ${fmtD(o.b.end)}</span>` +
+      `<span><span class="cb-plat">${bLabel(o.a)}</span> ${fmtD(o.a.start)} → ${fmtD(o.a.end)}` +
+      ` &nbsp;×&nbsp; <span class="cb-plat">${bLabel(o.b)}</span> ${fmtD(o.b.start)} → ${fmtD(o.b.end)}</span>` +
       `</div>`;
   };
 
-  let html = '';
-  if (real.length) {
-    html += `<h3>⚠️ ${real.length} ${pluralOverlap(real.length)} rezervací</h3>` +
-      `<p class="cb-hint">Dva pobyty na stejný termín a oba jsou právě teď v živém feedu. ` +
-      `Tohle je potřeba řešit na platformách.</p>` +
-      `<div class="cb-list">${real.map(row).join('')}</div>`;
-  }
-  if (suspect.length) {
-    html += `<h3 class="cb-soft">❓ ${suspect.length} ${pluralOverlap(suspect.length)} se starým záznamem</h3>` +
-      `<p class="cb-hint">Aspoň jedna strana už v živém feedu není — typicky propadlá předrezervace, ` +
-      `zrušený nebo přeuložený pobyt. Většinou planý poplach. Mazat se ale nesmí: hub odmítá ` +
-      `importovat rezervaci přes existující překryv, takže i platná rezervace může z feedu zmizet. ` +
-      `Ověřte v extranetu platformy.</p>` +
-      `<div class="cb-list">${suspect.map(row).join('')}</div>`;
-  }
-  box.innerHTML = html;
-  box.className = 'conflict-banner' + (real.length ? '' : ' soft');
+  box.innerHTML = `<h3>⚠️ ${overlaps.length} ${pluralOverlap(overlaps.length)} rezervací</h3>` +
+    `<p class="cb-hint">Dva pobyty na stejný termín a oba jsou právě teď v živém feedu. ` +
+    `Tohle je potřeba řešit na platformách.</p>` +
+    `<div class="cb-list">${overlaps.map(row).join('')}</div>`;
+  box.className = 'conflict-banner';
   box.style.display = 'block';
 }
 
@@ -668,6 +663,9 @@ let todayCardId = null;
 function renderCalendar(bookings) {
   const today    = new Date(); today.setHours(0,0,0,0);
   const now      = new Date();
+  // Nepotvrzené záznamy ven — a to jednou, tady. Všechno pod tím (mřížka, tooltip,
+  // obsazenost, souhrn překryvů, přehled úklidů) pak pracuje jen s tím, co platí.
+  bookings = bookings.filter(b => !isGhost(b, today));
   const MONTHS   = ['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];
   const DAYS     = ['Po','Út','St','Čt','Pá','So','Ne'];
 
@@ -725,9 +723,8 @@ function renderCalendar(bookings) {
 
       // ── FIX 4: Half-day split rendering ──────────────────────────────────
       const h = getDayHalves(y, m, d, bookings);
-      // Rámeček jen u skutečné dvojité rezervace. Překryv se starým záznamem se
-      // v mřížce neoznačuje vůbec — patří do banneru, ne do 15 buněk kalendáře.
-      cell.className = 'day-cell' + (isToday ? ' today' : '') + (h.conflictReal ? ' conflict' : '');
+      // Rámeček jen u skutečné dvojité rezervace — dva pobyty ze živého feedu.
+      cell.className = 'day-cell' + (isToday ? ' today' : '') + (h.conflict ? ' conflict' : '');
       const tipLines = [];
       let halvesHtml = '<div class="cell-halves"></div>';
 
@@ -752,12 +749,11 @@ function renderCalendar(bookings) {
 
         if (h.conflict) {
           // u překryvu vypsat VŠECHNY dotčené pobyty, ne jen ten poslední
-          tipLines.push(h.conflictReal
-            ? `⚠️ PŘEKRYV — ${h.all.length} rezervace na tento den:`
-            : `❓ Překryv se starým záznamem — ${h.all.length} rezervace:`);
-          h.all.forEach(b => tipLines.push(`• ${bLabel(b)}${ghostNote(b)}: ${fmtD(b.start)} → ${fmtD(b.end)}`));
-        } else if (h.hasGhost) {
-          h.all.forEach(b => tipLines.push(`${bLabel(b)}${ghostNote(b)}: ${fmtD(b.start)} → ${fmtD(b.end)}`));
+          const clash = h.all.filter(b => !b.stale);
+          tipLines.push(`⚠️ PŘEKRYV — ${clash.length} rezervace na tento den:`);
+          clash.forEach(b => tipLines.push(`• ${bLabel(b)}: ${fmtD(b.start)} → ${fmtD(b.end)}`));
+        } else if (h.all.some(b => b.stale)) {
+          h.all.forEach(b => tipLines.push(`${bLabel(b)}: ${fmtD(b.start)} → ${fmtD(b.end)}`));
         } else {
           if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${h.outGuest.platform} ↑ 10:00`);
           if (h.stayGuest) tipLines.push(`${RESERVATION_LABEL} · ${h.stayGuest.platform}`);
@@ -915,15 +911,19 @@ function refreshHistoryPanel() {
   count.textContent = all.length;
   panel.style.display = all.length ? '' : 'none';
   items.innerHTML = '';
+  const today = new Date(); today.setHours(0,0,0,0);
   [...all].reverse().forEach(b => {
     const isManual = b.uid.startsWith('manual-');
     const nights   = Math.round((b.end - b.start) / 86400000);
+    // Záznam, který se v kalendáři schválně nezobrazuje (viz isGhost), musí být
+    // aspoň tady vidět — kdyby platforma omylem zahodila platnou rezervaci.
+    const ghost    = isGhost(b, today);
     const div      = document.createElement('div');
     div.className  = 'history-item';
     div.innerHTML  = `
       <span>
         <span class="badge ${isManual?'manual-badge':''}" style="${isManual?'':'background:'+LIGHT[b.platform]+';color:'+COL[b.platform]}">${isManual?'✏️ ruční':b.platform}</span>
-        &nbsp;<strong>${fmtD(b.start)}</strong> → ${fmtD(b.end)} &nbsp;·&nbsp; ${nights}n &nbsp;·&nbsp; ${isManual ? RESERVATION_LABEL + ' (ruční)' : RESERVATION_LABEL}
+        &nbsp;<strong>${fmtD(b.start)}</strong> → ${fmtD(b.end)} &nbsp;·&nbsp; ${nights}n &nbsp;·&nbsp; ${isManual ? RESERVATION_LABEL + ' (ruční)' : RESERVATION_LABEL}${ghost ? ' <span style="color:#B0642B;font-weight:700">· není ve feedu, v kalendáři skryto</span>' : ''}
       </span>
       ${isManual ? `<button class="del-btn" onclick="deleteEntry('${b.uid.replace(/'/g,"\\'")}')">✕ smazat</button>` : ''}`;
     items.appendChild(div);
