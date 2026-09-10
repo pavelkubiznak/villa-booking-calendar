@@ -2,13 +2,29 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
 <title>Villa Rudolf — Majitel</title>
+<!-- Přidání na plochu (iOS „Sdílet → Přidat na plochu", Android „Instalovat"):
+     ikona, název pod ní a spuštění na celou obrazovku bez adresního řádku. -->
+<link rel="apple-touch-icon" sizes="180x180" href="icons/owner-icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/owner-icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/owner-icon-32.png">
+<link rel="manifest" href="owner.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Majitel">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#B8860B">
+
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #F0F2F5; color: #2C3E50; padding: 24px; }
+  /* --pad drží okraj stránky na jednom místě; media queries mění jen jeho hodnotu.
+     env(safe-area-inset-*) = výřez / domovský indikátor iPhonu v režimu na plochu. */
+  :root { --pad: 24px; }
+  body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background: #F0F2F5; color: #2C3E50; padding: var(--pad); }
+  body { padding-left: calc(var(--pad) + env(safe-area-inset-left, 0px)); padding-right: calc(var(--pad) + env(safe-area-inset-right, 0px)); padding-bottom: calc(var(--pad) + env(safe-area-inset-bottom, 0px)); }
 
   h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
   .subtitle { font-size: 12px; color: #95A5A6; margin-bottom: 16px; }
@@ -168,13 +184,13 @@
   .set-note { font-size:11px; color:#95A5A6; line-height:1.6; margin-top:12px; }
 
   @media (max-width: 600px) {
-    body { padding: 12px; }
+    :root { --pad: 12px; }
     .months { grid-template-columns: 1fr; gap: 12px; }
     h1 { font-size: 18px; }
     .kpi-row { grid-template-columns: repeat(2, 1fr); }
   }
   @media (max-width: 480px) {
-    body { padding: 8px; }
+    :root { --pad: 8px; }
     .kpi-row { grid-template-columns: 1fr; }
     .bd-name { width:72px; }
     .bd-val { width:96px; }
