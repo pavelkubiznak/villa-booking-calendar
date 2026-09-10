@@ -257,6 +257,90 @@ def test_failed_feed_aborts():
     check('says why', 'refusing to rewrite' in r.stderr, r.stderr[-300:])
 
 
+def test_direct_sales():
+    """Přímý prodej ze Supabase — to, co v žádném feedu není.
+
+    Tady se hlídají obě strany: že se předrezervace do veřejného archivu opravdu
+    dostane (jinak ji web pořád nabízí jako volnou), a že se NEdostane tam, kde už
+    ten termín drží blok z platformy (jinak by z jednoho pobytu byla červená dvojitá
+    rezervace)."""
+    print('\nPŘÍMÝ PRODEJ — předrezervace a přímé rezervace ze Supabase')
+    d = tempfile.mkdtemp(prefix='vr-direct-')
+    open(os.path.join(d, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('booking-1@e-chalupy.cz', 'Rezervace', '20270701', '20270708'),
+        # tenhle blok si majitel udělal sám kvůli přímé rezervaci níž
+        vevent('booking-2@e-chalupy.cz', 'Rezervace', '20270814', '20270821'),
+    ))
+    json.dump([
+        {'uidh': '1111111111111111', 'start': '2027-08-14', 'end': '2027-08-21',
+         'kind': 'direct', 'holdUntil': None},
+        {'uidh': '2222222222222222', 'start': '2027-09-04', 'end': '2027-09-11',
+         'kind': 'hold', 'holdUntil': '2026-10-01'},
+        {'uidh': 'nonsense', 'start': '2027-09-04', 'end': '2027-09-11',
+         'kind': 'hold', 'holdUntil': None},
+    ], open(os.path.join(d, 'holds.json'), 'w'))
+
+    cwd = workdir()
+    r = run(cwd, '--fixtures', d)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    hist = json.loads(read(cwd, 'history.json'))
+    by = {e['uidh']: e for e in hist}
+
+    check('předrezervace je v archivu', '2222222222222222' in by)
+    hold = by.get('2222222222222222', {})
+    check('platforma je Přímá', hold.get('platform') == 'Přímá', str(hold.get('platform')))
+    check('nese kind=hold', hold.get('kind') == 'hold', str(hold.get('kind')))
+    check('nese holdUntil', hold.get('holdUntil') == '2026-10-01', str(hold.get('holdUntil')))
+    check('není duch', hold.get('stale') is False, str(hold.get('stale')))
+
+    check('termín krytý blokem z platformy se nepublikuje', '1111111111111111' not in by)
+    check('a je to vidět v logu', 'already blocked on a platform' in r.stdout)
+    check('rozbitý uidh neprojde', 'malformed uidh' in r.stdout)
+
+    check('do feed.ics se přímý prodej nepíše', '2222222222222222' not in (read(cwd, 'feed.ics') or ''))
+    check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout, r.stdout[-400:])
+
+
+def test_direct_sales_source_unavailable():
+    """Výpadek databáze nesmí uvolnit držené termíny."""
+    print('\nPŘÍMÝ PRODEJ — nedostupný zdroj drží archiv beze změny')
+    d = tempfile.mkdtemp(prefix='vr-direct-none-')
+    open(os.path.join(d, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('booking-1@e-chalupy.cz', 'Rezervace', '20270701', '20270708')))
+    # ŽÁDNÝ holds.json → zdroj se v tomhle běhu nepřečetl
+    seed = [{'uidh': '2222222222222222', 'start': '2027-09-04', 'end': '2027-09-11',
+             'platform': 'Přímá', 'kind': 'hold', 'holdUntil': '2026-10-01',
+             'firstSeen': '2026-09-01', 'lastSeen': '2026-09-01', 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    by = {e['uidh']: e for e in json.loads(read(cwd, 'history.json'))}
+    kept = by.get('2222222222222222', {})
+    check('předrezervace zůstala', bool(kept))
+    check('pořád drží termín (není duch)', kept.get('stale') is False, str(kept.get('stale')))
+    check('kind i holdUntil přežily', kept.get('kind') == 'hold' and kept.get('holdUntil') == '2026-10-01', str(kept))
+    check('firstSeen se nepřepsal', kept.get('firstSeen') == '2026-09-01', str(kept.get('firstSeen')))
+    check('log to říká', 'left untouched' in r.stdout)
+
+
+def test_direct_sales_expiry_frees_the_term():
+    """Propadlá předrezervace mizí sama — databáze ji přestane vracet, nic víc."""
+    print('\nPŘÍMÝ PRODEJ — propadlý hold uvolní termín')
+    d = tempfile.mkdtemp(prefix='vr-direct-gone-')
+    open(os.path.join(d, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('booking-1@e-chalupy.cz', 'Rezervace', '20270701', '20270708')))
+    json.dump([], open(os.path.join(d, 'holds.json'), 'w'))
+    seed = [{'uidh': '2222222222222222', 'start': '2027-09-04', 'end': '2027-09-11',
+             'platform': 'Přímá', 'kind': 'hold', 'holdUntil': '2026-10-01',
+             'firstSeen': '2026-09-01', 'lastSeen': '2026-09-01', 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    by = {e['uidh']: e for e in json.loads(read(cwd, 'history.json'))}
+    check('termín je zase volný', '2222222222222222' not in by)
+    check('a nezůstal po něm duch', all(e.get('platform') != 'Přímá' for e in by.values()))
+
+
 def test_dry_run_writes_nothing():
     print('\n--dry-run')
     d = multi_fixtures()
@@ -275,6 +359,9 @@ if __name__ == '__main__':
     test_real_double_booking_survives()
     test_uidh_continuity()
     test_failed_feed_aborts()
+    test_direct_sales()
+    test_direct_sales_source_unavailable()
+    test_direct_sales_expiry_frees_the_term()
     test_dry_run_writes_nothing()
     if SKIPPED:
         print('\nPŘESKOČENO (neselhalo, jen se v tomhle prostředí nedalo spustit): '

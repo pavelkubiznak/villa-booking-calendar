@@ -109,6 +109,13 @@
      rámeček + „?"). Zůstává v tooltipu a v banneru nad kalendářem. */
   .half-am.clash, .half-pm.clash { color: #fff; text-shadow: 0 0 2px rgba(0,0,0,0.95); }
   /* Duch (vypadl z feedu) — musí být za .clash i .dark-txt, aby při shodné specificitě vyhrál. */
+  /* Předrezervace — vystavená zálohová faktura, zaplacená zatím není. Termín drží,
+     ale potvrzený pobyt to není: světlá výplň + čárkovaný fialový obrys. Schválně
+     jiný jazyk než duch (tečkovaně, „vypadlo z feedu"). Shodné s index.html. */
+  .half-am.pre, .half-pm.pre {
+    color: rgba(78, 32, 99, 0.85); text-shadow: none;
+    outline: 1px dashed #8E44AD; outline-offset: -1px;
+  }
   .half-am.ghost, .half-pm.ghost {
     color: rgba(0,0,0,0.5); text-shadow: none;
     box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
@@ -233,8 +240,11 @@
     <div class="legend-item"><div class="legend-swatch" style="background:#2980B9"></div> Booking.com</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#8E44AD"></div> Přímá</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#F4ECF7;outline:1px dashed #8E44AD;outline-offset:-1px"></div> Předrezervace</div>
   </div>
-  <p class="legend-note">Tržby se rozpočítávají po nocích do měsíců · číslo v záhlaví měsíce = tržba daného měsíce</p>
+  <p class="legend-note">Tržby se rozpočítávají po nocích do měsíců · číslo v záhlaví měsíce = tržba daného měsíce ·
+  <b>předrezervace</b> (vystavená, zatím neuhrazená zálohová faktura) drží termín v kalendáři, ale do KPI se nepočítá — potvrdí se v <a href="https://villarudolf.com/sprava/" style="color:#8E44AD">/sprava/</a></p>
 
   <!-- Calendar -->
   <div id="conflict-banner" class="conflict-banner"></div>
@@ -307,8 +317,23 @@ const TOKEN_HASH = '0b4226395f3ac784b9eb3ce51f1886d5786809d019e4762e0347cfbb18f0
 const CRYPTO_SALT = 'villa-rudolf-owner-v1';   // fixed salt; safe given a high-entropy token + AES-GCM
 const PBKDF2_ITERS = 310000;                   // OWASP-recommended floor (runs once, at unlock)
 
-const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12' };
-const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
+// 'Přímá' = přímý prodej (předrezervace i potvrzená přímá rezervace). Nechodí
+// z žádného feedu — do history.json ji doplňuje Action ze Supabase, viz
+// update_history.py → DIRECT SALES. Fialová schválně nesousedí s barvami platforem.
+const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12', 'Přímá':'#8E44AD' };
+const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7', 'Přímá':'#F4ECF7' };
+
+// Předrezervace = zálohová faktura vystavená, ale ještě neuhrazená. Termín drží,
+// ale potvrzený pobyt to není. Drženo synchronně s index.html.
+function isHold(b) { return b && b.kind === 'hold'; }
+function holdNote(b) {
+  return isHold(b) ? ` ⟨předrezervace${b.holdUntil ? ' drží do ' + fmtISO(b.holdUntil) : ''}⟩` : '';
+}
+// 'YYYY-MM-DD' → '15. 10. 2026' (holdUntil chodí z databáze jako řetězec)
+function fmtISO(iso) {
+  const p = String(iso || '').split('-');
+  return p.length === 3 ? `${+p[2]}. ${+p[1]}. ${p[0]}` : String(iso || '');
+}
 const RESERVATION_LABEL = 'Rezervace';   // guest names are gone — look the guest up in the platform extranet
 function platformOf(s) { return COL[s] ? s : 'E-chalupy'; }
 function is16hex(k) { return /^[0-9a-f]{16}$/.test(String(k)); }
@@ -465,7 +490,9 @@ function mergeHistory(freshEvents) {
   const history = loadHistory();
   freshEvents.forEach(ev => {
     if (!ev.uid) return;
-    history[ev.uid] = { uid: ev.uid, startTs: ev.start.getTime(), endTs: ev.end.getTime(), platform: ev.platform, stale: !!ev.stale };
+    history[ev.uid] = { uid: ev.uid, startTs: ev.start.getTime(), endTs: ev.end.getTime(), platform: ev.platform, stale: !!ev.stale,
+                        // přímý prodej ze Supabase — 'hold' (předrezervace) / 'direct' (potvrzená)
+                        kind: ev.kind || undefined, holdUntil: ev.holdUntil || undefined };
   });
   const cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 18); cutoff.setHours(0,0,0,0);
   Object.keys(history).forEach(uid => { if (history[uid].endTs < cutoff.getTime()) delete history[uid]; });
@@ -474,9 +501,12 @@ function mergeHistory(freshEvents) {
 }
 function historyToEvents(history) {
   return Object.values(history)
-    // Ručně zadaný pobyt ve feedu nikdy nebude — nesmí kvůli tomu zestárnout na ducha.
+    // Ručně zadaný pobyt ani přímý prodej ve feedu nikdy nebude — nesmí kvůli tomu
+    // zestárnout na ducha. (Propadlou předrezervaci vr_public_holds() přestane vracet,
+    // takže z archivu zmizí sama.)
     .map(h => ({ uid: h.uid, start: new Date(h.startTs), end: new Date(h.endTs), platform: platformOf(h.platform),
-                 stale: !!h.stale && !String(h.uid || '').startsWith('manual-') }))
+                 kind: h.kind || undefined, holdUntil: h.holdUntil || undefined,
+                 stale: !!h.stale && !h.kind && !String(h.uid || '').startsWith('manual-') }))
     .sort((a, b) => a.start - b.start);
 }
 function getAllFromHistory() { return historyToEvents(loadHistory()); }
@@ -523,6 +553,9 @@ function getDayHalves(y, m, d, bookings) {
     amAll: am, pmAll: pm, all: all,
     am: am[0] || null, pm: pm[0] || null,
     isCheckout: outs.length > 0, isCheckin: ins.length > 0,
+    // Den odjezdu = den úklidu, ale jen u pobytu, který se opravdu uskuteční —
+    // předrezervace se úklidem neplánuje, dokud není zaplacená.
+    isCleaning: outs.some(b => !isHold(b)),
     outGuest: outs[0] || null, inGuest: ins[0] || null, stayGuest: mids[0] || null,
     conflict: am.length > 1 || pm.length > 1,
     // Poplach jen když kolidují DVA ŽIVÉ pobyty; s duchem = jen k ověření.
@@ -542,14 +575,26 @@ function shown(list) {
   return live.length ? live : list.slice(0, 1);
 }
 
+// Třída půldne podle toho, co se v něm SKUTEČNĚ kreslí (shown): šrafa má přednost
+// (přes pruhy je čitelný jen obrys), duch i předrezervace chtějí tmavý text na
+// světlém pozadí. Drženo synchronně s index.html.
+function halfCls(list) {
+  const vis = shown(list);
+  if (vis.length > 1) return ' clash';
+  if (!vis.length)    return '';
+  if (vis[0].stale)   return ' ghost';
+  if (isHold(vis[0])) return ' pre';
+  return vis[0].platform === 'Fewo-direkt' ? ' dark-txt' : '';
+}
+
 // Pozadí půldne: jedna rezervace = plná barva, víc = šikmé pruhy platforem
 // oddělené tmavě červenou (bez oddělovače by překryv dvou pobytů ze STEJNÉ
 // platformy splynul v plnou barvu). Šrafuje se JEN překryv dvou ŽIVÝCH pobytů.
 function halfStyle(list) {
   const vis = shown(list);
   if (!vis.length) return '';
-  // Duch = světlá varianta barvy platformy: pořád poznáš zdroj, ale nevypadá potvrzeně.
-  const colOf = b => b.stale ? (LIGHT[b.platform] || '#ECEFF1') : (COL[b.platform] || '#B0BEC5');
+  // Duch i předrezervace = světlá varianta barvy: pořád poznáš zdroj, ale nevypadá potvrzeně.
+  const colOf = b => (b.stale || isHold(b)) ? (LIGHT[b.platform] || '#ECEFF1') : (COL[b.platform] || '#B0BEC5');
   if (vis.length === 1) return `background:${colOf(vis[0])}`;
   const stops = [];
   vis.forEach((b, i) => {
@@ -595,8 +640,8 @@ function renderConflictBanner(overlaps) {
     const id = `month-${o.start.getFullYear()}-${o.start.getMonth()}`;
     return `<div class="cb-row">` +
       `<a onclick="jumpToMonth('${id}')">${fmtD(o.start)} → ${fmtD(o.end)}</a>` +
-      `<span><span class="cb-plat">${esc(o.a.platform)}</span>${ghostNote(o.a)} ${fmtD(o.a.start)} → ${fmtD(o.a.end)}` +
-      ` &nbsp;×&nbsp; <span class="cb-plat">${esc(o.b.platform)}</span>${ghostNote(o.b)} ${fmtD(o.b.start)} → ${fmtD(o.b.end)}</span>` +
+      `<span><span class="cb-plat">${esc(o.a.platform)}</span>${ghostNote(o.a)}${holdNote(o.a)} ${fmtD(o.a.start)} → ${fmtD(o.a.end)}` +
+      ` &nbsp;×&nbsp; <span class="cb-plat">${esc(o.b.platform)}</span>${ghostNote(o.b)}${holdNote(o.b)} ${fmtD(o.b.start)} → ${fmtD(o.b.end)}</span>` +
       `</div>`;
   };
 
@@ -641,6 +686,12 @@ async function fetchAndMergeRemoteHistory() {
         uid: e.uidh || (e.uid ? uidHash(e.uid) : ''),
         start: new Date(e.start + 'T00:00:00'), end: new Date(e.end + 'T00:00:00'),
         platform: platformOf(e.platform),   // whitelist: never trust a free-form platform from the remote file
+        // Přímý prodej: 'hold' = předrezervace (drží do holdUntil), 'direct' = potvrzená.
+        kind: (e.kind === 'hold' || e.kind === 'direct') ? e.kind : undefined,
+        holdUntil: e.holdUntil || undefined,
+        // stale se sem dřív nepřenášel vůbec — duchové se pak v majitelském pohledu
+        // kreslili jako plnohodnotné rezervace. index.html to dělal správně už dřív.
+        stale: e.stale === true,
       }))
       .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
     if (events.length === 0) return 0;
@@ -818,6 +869,10 @@ function computeKPIs(bookings) {
   const plat = (p) => (byPlat[p] || (byPlat[p] = { revenue: 0, nights: 0, count: 0, unpriced: 0 }));
 
   bookings.forEach(b => {
+    // Předrezervace do KPI nepatří: tržba to není, obsazenost to zatím taky ne
+    // a bez ceny by navíc kazila hlášku „N pobytů bez ceny". V kalendáři a
+    // v tabulce vidět je — jen se do čísel nezapočítává, dokud se nepotvrdí.
+    if (isHold(b)) return;
     const n = nightsBetween(b.start, b.end);
     if (n <= 0) return;                      // skip same-day / malformed entries
     const total    = priceCZK(b.uid);
@@ -1014,17 +1069,10 @@ function renderCalendar(bookings) {
       const tipLines = [];
       let halvesHtml = '<div class="cell-halves"></div>';
       if (h.any) {
-        // Řídí se tím, co se v půldni SKUTEČNĚ kreslí (shown), ne vším, co se ho dotýká.
-        const halfCls = list => {
-          const vis = shown(list);
-          if (vis.length > 1) return ' clash';
-          if (!vis.length)    return '';
-          if (vis[0].stale)   return ' ghost';
-          return vis[0].platform === 'Fewo-direkt' ? ' dark-txt' : '';
-        };
+        // halfCls je společná funkce (viz nad halfStyle) — obě stránky ji musí mít stejnou.
         const amCls = halfCls(h.amAll), pmCls = halfCls(h.pmAll);
         halvesHtml = `<div class="cell-halves">` +
-          `<div class="half-am${amCls}" style="${halfStyle(h.amAll)}">${h.isCheckout ? '↑10' : ''}</div>` +
+          `<div class="half-am${amCls}" style="${halfStyle(h.amAll)}">${h.isCleaning ? '↑10' : ''}</div>` +
           `<div class="half-pm${pmCls}" style="${halfStyle(h.pmAll)}">${h.isCheckin ? '↓15' : ''}</div></div>`;
         if (h.conflict) {
           // u překryvu vypsat VŠECHNY dotčené pobyty, ne jen ten poslední
@@ -1034,6 +1082,11 @@ function renderCalendar(bookings) {
           h.all.forEach(b => tipLines.push(`• ${esc(b.platform)}${ghostNote(b)}: ${fmtD(b.start)} → ${fmtD(b.end)}${priceTip(b)}`));
         } else if (h.hasGhost) {
           h.all.forEach(b => tipLines.push(`${esc(b.platform)}${ghostNote(b)}: ${fmtD(b.start)} → ${fmtD(b.end)}${priceTip(b)}`));
+        } else if (h.all.some(isHold)) {
+          h.all.forEach(b => tipLines.push(isHold(b)
+            ? `⏳ Předrezervace: ${fmtD(b.start)} → ${fmtD(b.end)}` +
+              (b.holdUntil ? ` · drží do ${fmtISO(b.holdUntil)}` : '') + `${priceTip(b)}`
+            : `${esc(b.platform)}: ${fmtD(b.start)} → ${fmtD(b.end)}${priceTip(b)}`));
         } else {
           if (h.outGuest)  tipLines.push(`🧹 Odjezd: ${esc(h.outGuest.platform)} ↑ 10:00${priceTip(h.outGuest)}`);
           if (h.stayGuest) tipLines.push(`${RESERVATION_LABEL} · ${esc(h.stayGuest.platform)}${priceTip(h.stayGuest)}`);
@@ -1080,7 +1133,7 @@ function renderTable(bookings, today) {
         <td style="color:#B0BEC5">${i+1}</td>
         <td><strong>${fmtD(b.start)}</strong></td>
         <td>${fmtD(b.end)}</td>
-        <td style="color:#95A5A6">${RESERVATION_LABEL}</td>
+        <td style="color:#95A5A6">${isHold(b) ? '⏳ Předrezervace' + (b.holdUntil ? ' do ' + fmtISO(b.holdUntil) : '') : RESERVATION_LABEL}</td>
         <td class="num" style="font-weight:700">${n}</td>
         <td><span class="badge" style="background:${LIGHT[b.platform]};color:${COL[b.platform]}">${esc(b.platform)}</span></td>
         <td class="num">
