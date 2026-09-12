@@ -14,7 +14,7 @@
     "2027-05-27..2027-05-29": { "reason": "starší verze téhož pobytu 22.–29. 5. 2027; v Booking extranetu je na ten týden jediná rezervace" },
     "2027-06-24..2027-06-27": { "reason": "propadlý cross-import pobytu 23.–27. 6. 2027, který je potvrzený na Airbnb" },
     "2027-08-07..2027-08-14": { "reason": "Booking extranet na ten týden nemá žádnou rezervaci (ověřeno 12. 9. 2026); stejný termín drží živý pobyt jiného kanálu, takže obsazenost zůstává" },
-    "2027-08-14..2027-08-21": { "reason": "Airbnb tenhle termín v nadcházejících rezervacích nemá, Booking ani FeWo taky ne. Ověřeno v extranetech 12. 9. 2026" },
+    "2027-08-14..2027-08-21": { "reason": "Airbnb tenhle termín v nadcházejících rezervacích nemá, Booking ani FeWo taky ne. Ověřeno v extranetech 12. 9. 2026. POZOR: týden je prodaný napřímo (smlouva + zálohová faktura z 26. 8. 2026) a v e-chalupách CHYBÍ — jakmile se tam zadá, objeví se jako živý záznam a tenhle duch se přestane uplatňovat sám" },
     "2028-01-02..2028-01-16": { "reason": "Booking na leden 2028 žádnou rezervaci nemá, kalendář extranetu je volný od 4. 1." },
     "2028-01-12..2028-01-13": { "reason": "Booking na leden 2028 žádnou rezervaci nemá, kalendář extranetu je volný od 4. 1." }
   },
@@ -41,7 +41,10 @@
     "2027-01-03..2027-01-10": { "status": "confirmed" },
     "2027-01-30..2027-02-06": { "status": "unconfirmed", "note": "žádná smlouva na 2027, v záznamu není kontakt" },
     "2027-02-06..2027-02-13": { "status": "confirmed" },
-    "2027-02-20..2027-02-27": { "status": "unconfirmed", "note": "v názvu jen domluvená cena, žádná smlouva ani kontakt" },
+    "2027-02-13..2027-02-20": { "status": "confirmed", "note": "přímá smlouva + zálohová faktura z 29. 8. 2026; v kalendáři NENÍ — zadat do e-chalup, jinak termín nic neblokuje" },
+    "2027-02-20..2027-02-27": { "status": "unconfirmed", "note": "v názvu jen domluvená cena, žádná smlouva ani kontakt. Přímá smlouva ze srpna 2026 je na 13.–20. 2., ne na tento týden — nejspíš starý zbytek původně domluveného termínu, ověřit a případně v e-chalupách zrušit" },
+    "2027-03-04..2027-03-07": { "status": "confirmed", "note": "Booking, ověřeno v extranetu 12. 9. 2026" },
+    "2027-03-25..2027-03-29": { "status": "confirmed", "note": "Airbnb, ověřeno v extranetu 12. 9. 2026" },
     "2027-04-29..2027-05-02": { "status": "confirmed" },
     "2027-05-05..2027-05-09": { "status": "confirmed", "note": "potvrzeno na Airbnb, do e-chalup dopsáno ručně; FeWo proto hlásí falešný konflikt" },
     "2027-05-14..2027-05-18": { "status": "confirmed" },
@@ -52,9 +55,11 @@
     "2027-07-03..2027-07-10": { "status": "confirmed" },
     "2027-07-12..2027-07-21": { "status": "confirmed" },
     "2027-07-31..2027-08-07": { "status": "confirmed" },
+    "2027-08-07..2027-08-14": { "status": "confirmed", "note": "přímá smlouva + zálohová faktura z 26. 8. 2026; v e-chalupách je" },
+    "2027-08-14..2027-08-21": { "status": "confirmed", "note": "přímá smlouva + zálohová faktura z 26. 8. 2026; v kalendáři NENÍ (jen mrtvý duch z Airbnb) — zadat do e-chalup, jinak termín nic neblokuje" },
     "2027-08-30..2027-09-05": { "status": "confirmed" },
     "2027-10-29..2027-11-01": { "status": "confirmed" },
-    "2027-12-27..2028-01-03": { "status": "confirmed" },
+    "2027-12-27..2028-01-03": { "status": "confirmed", "note": "12. 9. 2026: žádná smlouva na Disku, žádný kanál ho nemá (FeWo prosinec 2027 prázdný, Booking do 31. 3. 2028 nic), z feedu vypadl. Držím jako obsazeno, dokud se nenajde doklad — pak buď zadat do e-chalup, nebo vyřadit" },
     "2028-05-25..2028-05-28": { "status": "unconfirmed", "note": "jen e-mailový dotaz dva roky dopředu, bez smlouvy a bez platby" }
   }
 }
