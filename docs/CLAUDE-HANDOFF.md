@@ -63,7 +63,7 @@ uidh = sha256(uid_bytes_utf8).hexdigest()[:16]      # lowercase hex, prvních 16
 ```
 
 - Python: `.github/scripts/update_history.py` → `uid_hash()`.
-- JS: `index.html` a `owner.html` → `uidHash()` (čistá synchronní implementace `sha256hexSync`).
+- JS: `index.html` a `owner.html` → `uidHash()` (čistá synchronní implementace sha-256, `sha256hexSync` v owner.html).
 - Ověřeno vektory: `sha256("abc")[:16] = ba7816bf8f01cfea`;
   `sha256("18852-11157098@e-chalupy.cz")[:16] = 4223dbb99ead635a`. Python i JS dávají shodu.
 - **Při jakékoli změně hashovací normalizace se rozbije merge i mapování cen** — měnit jen
@@ -72,15 +72,21 @@ uidh = sha256(uid_bytes_utf8).hexdigest()[:16]      # lowercase hex, prvních 16
 ## Aktualizační pipeline
 
 - GitHub Action `.github/workflows/update-history.yml`: cron `17 */3 * * *` + `workflow_dispatch`.
-- Spouští `.github/scripts/update_history.py` (čistý stdlib Python, bez secrets — GITHUB_TOKEN stačí):
-  stáhne e-chalupy iCal → **sanitizuje** → zapíše `data/feed.ics` (anonymizovaný snapshot:
-  `SUMMARY`=platforma, `UID`=uidh, bez Description/Attendee/Organizer) → merge do `data/history.json`
-  jako `{uidh,start,end,platform}` (filtr šumu, prořez 18 m) → commit `[skip ci]` jen při změně.
+- Spouští `.github/scripts/update_history.py` (čistý stdlib Python). URL feedů bere **z prostředí**
+  (`ICAL_URL_AIRBNB`, `ICAL_URL_BOOKING`, `ICAL_URL_FEWO`, `ICAL_URL_ECHALUPY` ← repo secrets;
+  nenastavený = feed se přeskočí). Jen e-chalupy feed = **hub mode** (platforma z UID, chová se
+  jako dřív); dva a víc feedů = **multi mode** (platforma = kanál feedu, cizí bloky se filtrují,
+  shodné termíny napříč kanály se slučují, archivní `uidh` se přebírá). Detaily v `CLAUDE.md`.
+  Každý feed → **sanitizuje** → zapíše `data/feed.ics` (anonymizovaný snapshot: `SUMMARY`=platforma,
+  `UID`=uidh, bez Description/Attendee/Organizer) → merge do `data/history.json` jako
+  `{uidh,start,end,platform,firstSeen,lastSeen,stale}` (filtr šumu, prořez 18 m) → commit
+  `[skip ci]` jen při změně. Selhání kteréhokoli feedu = skript skončí chybou a archiv nepřepíše.
+- Testy bez sítě: `python3 .github/scripts/test_update_history.py` (workflow je pouští před ostrým během).
 - `load_history()` čte **oba formáty** existující history.json: nový `{uidh,…}` i starý
   `{uid,guest,…}` (starý zmigruje = uid zahashuje, guest zahodí). Migrace proběhne sama při
   prvním běhu.
-- Skript **nikdy netiskne `ICAL_URL`** do logu (obsahuje privátní klíč feedu; logy public repa
-  jsou veřejné). Původní `print(f'Fetching {ICAL_URL}')` byl odstraněn.
+- Skript **nikdy netiskne URL feedu** do logu (obsahuje privátní klíč; logy public repa jsou
+  veřejné) — ani v chybových hláškách.
 - Klientské stránky se za běhu NEspoléhají na žádnou třetí stranu (CORS proxy byly odstraněny).
 
 ## Klientská architektura (obě stránky)
@@ -103,12 +109,17 @@ uidh = sha256(uid_bytes_utf8).hexdigest()[:16]      # lowercase hex, prvních 16
   ve feedu nikdy nebudou. Události z `feed.ics` mají vždy `stale:false` a v `mergeHistory`
   přebijí archiv (fresh se merguje jako poslední).
 
-## Překryvy rezervací — dvě úrovně
+## Překryvy rezervací
 
 | | Podmínka | Vzhled |
 |---|---|---|
-| **Skutečný** | oba pobyty `stale:false` | červený plný rámeček `.conflict`, ⚠, červený banner |
-| **Podezřelý** | aspoň jeden `stale:true` | oranžový čárkovaný `.conflict-soft`, ?, oranžový banner `.soft` |
+| **Skutečná dvojitá rezervace** | oba pobyty `stale:false` (živé ve `feed.ics`) | šrafovaná buňka barvami obou platforem, červený rámeček `.conflict`, ⚠, červený banner |
+| **Překryv s archivním záznamem** | aspoň jeden `stale:true` | **nešrafuje se** — kreslí se jen živá rezervace; překryv zůstává v tooltipu buňky |
+
+Rozhoduje `shown(list)` (od 2026-08-13, viz `CLAUDE.md`). Dřívější oranžový čárkovaný
+rámeček `.conflict-soft` s „?" byl zrušen — 15 šrafovaných buněk, ani jedna skutečný konflikt.
+Nepotvrzený záznam (`stale && end > dnes`) se od 2026-09-09 nezobrazuje vůbec (kalendář,
+tooltip, banner, obsazenost); je vypsaný jen v panelu historie / sekci „Nepotvrzené záznamy".
 
 Konvence intervalu je `[start, end)` — **den odjezdu = den příjezdu není překryv**; stejné
 pravidlo jako hlídač `VrConflictWatch` v n8n, ať si obě místa neprotiřečí.
@@ -159,5 +170,5 @@ tam byl dřív. Prořezávat se smí jen podle stáří (18 měsíců po `end`),
 ## Kontext provozu
 
 - Ceny pobytů NEJSOU v iCal (platformy je nedávají) — majitel je zadává ručně v owner.html.
-- Vlastník: Pavel Kubizňák (pavel.kubiznak@gmail.com). Úklid řeší personál podle index.html;
+- Vlastník: Pavel Kubizňák. Úklid řeší personál podle index.html;
   den odjezdu = den úklidu (mezi 10:00 a 15:00).

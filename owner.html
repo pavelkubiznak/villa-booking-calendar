@@ -394,7 +394,9 @@ function uidHash(uid) { return sha256hexSync(String(uid)).slice(0, 16); }
 function migratePriceKeys(obj) {
   const out = {};
   Object.keys(obj || {}).forEach(k => {
-    const nk = is16hex(k) ? k : uidHash(k);
+    // Ruční pobyty mají uid `manual-…` a ceny se k nim hledají tímhle klíčem —
+    // přehashovat by je znamenalo cenu ztratit. Nechávají se, jak jsou.
+    const nk = (is16hex(k) || String(k).startsWith('manual-')) ? k : uidHash(k);
     const cur = out[nk];
     // on collision keep the most recently edited entry
     if (!cur || (obj[k]?.mtime || 0) >= (cur.mtime || 0)) out[nk] = obj[k];
@@ -521,6 +523,9 @@ function parseICS(text) {
 }
 function icsToDate(s) { const d = s.replace(/[TZ].*/, ''); if (d.length < 8) return null; return new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8)); }
 
+// Lokální datum YYYY-MM-DD. toISOString() dává UTC — v Evropě/Praze by půlnoc
+// spadla do předchozího dne a export by měl všechna data o den zpátky.
+function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function sd(a, b)     { return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
 function fmtD(d)      { return d.toLocaleDateString('cs-CZ', { day:'2-digit', month:'short', year:'numeric' }); }
 function fmtMonth(d)  { return d.toLocaleDateString('cs-CZ', { month:'long', year:'numeric' }); }
@@ -1170,8 +1175,10 @@ function toggleArchive() {
   const body = document.getElementById('archive-body');
   const icon = document.getElementById('archive-icon');
   const lbl  = document.getElementById('archive-lbl');
-  const open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : '';
+  // CSS drží #archive-body{display:none}; inline style je na začátku prázdný,
+  // takže se musí číst vypočtený stav — jinak první klik jen zopakuje „skrýt".
+  const open = getComputedStyle(body).display !== 'none';
+  body.style.display = open ? 'none' : 'block';
   icon.textContent = open ? '▸' : '▾';
   const m = lbl.textContent.match(/\((\d+)\)/); const count = m ? m[1] : '';
   lbl.textContent = open ? `Zobrazit archiv proběhlých pobytů (${count})` : `Skrýt archiv proběhlých pobytů (${count})`;
@@ -1218,7 +1225,7 @@ function exportCSV() {
     const p = loadPrices()[b.uid];
     const pc = priceCZK(b.uid);
     rows.push([
-      b.start.toISOString().slice(0,10), b.end.toISOString().slice(0,10), n,
+      isoDate(b.start), isoDate(b.end), n,
       csvCell(RESERVATION_LABEL), csvCell(b.platform),
       p ? p.amount : '', p ? p.currency : '',
       pc != null ? Math.round(pc) : '',
@@ -1226,7 +1233,7 @@ function exportCSV() {
     ]);
   });
   const csv = '﻿' + rows.map(r => r.join(';')).join('\n');   // BOM + ; for Excel/cs-CZ
-  download(csv, `villa-trzby-${today.toISOString().slice(0,10)}.csv`, 'text/csv;charset=utf-8');
+  download(csv, `villa-trzby-${isoDate(today)}.csv`, 'text/csv;charset=utf-8');
 }
 
 function download(content, filename, type) {
