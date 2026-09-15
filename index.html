@@ -2,6 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Villa Rudolf — Kalendář</title>
 <!-- Přidání na plochu (iOS „Sdílet → Přidat na plochu", Android „Instalovat"):
@@ -511,6 +512,9 @@ function icsToDate(s) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+// Lokální datum YYYY-MM-DD. toISOString() dává UTC — v Evropě/Praze by půlnoc
+// spadla do předchozího dne a export by měl všechna data o den zpátky.
+function isoDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function sd(a, b) {
   return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
 }
@@ -865,8 +869,10 @@ function toggleArchive() {
   const body = document.getElementById('archive-body');
   const icon = document.getElementById('archive-icon');
   const lbl  = document.getElementById('archive-lbl');
-  const open = body.style.display !== 'none';
-  body.style.display = open ? 'none' : '';
+  // CSS drží #archive-body{display:none}; inline style je na začátku prázdný,
+  // takže se musí číst vypočtený stav — jinak první klik jen zopakuje „skrýt".
+  const open = getComputedStyle(body).display !== 'none';
+  body.style.display = open ? 'none' : 'block';
   icon.textContent = open ? '▸' : '▾';
   const m = lbl.textContent.match(/\((\d+)\)/);
   const count = m ? m[1] : '';
@@ -973,8 +979,8 @@ function clearAllAndRefresh() {
 function exportHistory() {
   const all  = getAllFromHistory();
   const rows = all.map(b => ({
-    checkin:  b.start.toISOString().slice(0,10),
-    checkout: b.end.toISOString().slice(0,10),
+    checkin:  isoDate(b.start),
+    checkout: isoDate(b.end),
     nights:   Math.round((b.end - b.start) / 86400000),
     platform: b.platform,
     uidh:     b.uid,
@@ -982,7 +988,7 @@ function exportHistory() {
   const blob = new Blob([JSON.stringify(rows, null, 2)], { type:'application/json' });
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);
-  a.download = `villa-rezervace-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `villa-rezervace-${isoDate(new Date())}.json`;
   a.click();
 }
 
