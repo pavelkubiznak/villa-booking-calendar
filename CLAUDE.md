@@ -28,10 +28,46 @@ Teď každá polovina dne drží **pole** (`amAll` / `pmAll`) a překryv se kres
   Oddělovač tam musí zůstat: bez něj překryv dvou pobytů ze STEJNÉ platformy splyne
   v plnou barvu. Tooltip vypíše všechny dotčené pobyty.
 - **Banner** nad kalendářem — souhrn s odkazem, který skočí na dotčený měsíc.
-- **Dvě úrovně.** Oba pobyty živé ve `feed.ics` = červeně „dvojitá rezervace".
-  Aspoň jedna strana jen v archivu (`stale`) = „❓ překryv se starým záznamem" —
-  typicky propadlá předrezervace. Mazat se nesmí: hub odmítá import přes existující
-  překryv, takže i platná rezervace může z feedu zmizet.
+- **Jen jedna úroveň.** Oba pobyty živé ve `feed.ics` = červeně „dvojitá rezervace".
+  Nic jiného se nehlásí — druhá, oranžová úroveň („❓ překryv se starým záznamem")
+  je od 2026-09 zrušená, viz níž.
+
+### Nepotvrzené záznamy se nezobrazují vůbec (2026-09-09)
+
+Majitel: *„najedu na termín, je tam napsané dvě rezervace a booking není ve feedu — vždycky
+se hrozně leknu, že mám dvojitou rezervaci. Potřebuju, aby tam fakt nebylo, co není
+potvrzené."* Šrafování už bylo pryč (viz níž), ale záznam zůstával v tooltipu, v banneru,
+v obsazenosti a v owner tabulce — takže strašil dál.
+
+Rozhodovadlo je **`isGhost(b, today)` = `b.stale && b.end > today`**, a filtruje se **jednou**,
+na začátku `renderCalendar()`. Všechno pod tím (mřížka, tooltip, obsazenost, banner, přehled
+úklidů, owner tabulka, KPI, tržby, CSV) pak počítá jen s tím, co platí.
+
+⚠️ **`stale` NENÍ „neexistuje".** Feed nese jen dnešek a budoucnost, takže **každý proběhlý
+pobyt zestárne na `stale` sám od sebe** — k 2026-09-09 je takových 21 z 30. Plošné skrytí
+všeho `stale` by z kalendáře i z tržeb smazalo celou historii. Proto ta podmínka `end > today`:
+duch je jen pobyt, který **má teprve proběhnout** a přesto ve feedu není (propadlá
+předrezervace, storno). Archiv se kreslí dál světle (`.ghost`).
+
+Skryté se neztrácí — hub je ztrátový a platná rezervace z něj vypadnout může:
+- `index.html` → panel „Správa uložené historie", záznam označený „není ve feedu, v kalendáři skryto";
+- `owner.html` → sekce „🗂 Nepotvrzené záznamy mimo kalendář" pod tabulkou;
+- `data/history.json` se nemění vůbec.
+
+Při té příležitosti opravena chyba v `owner.html`: `fetchAndMergeRemoteHistory()` **zahazoval
+příznak `stale`**, takže na majitelské stránce byl každý archivní záznam „živý" a překryv s ním
+svítil **červeně** jako skutečná dvojitá rezervace (23 buněk, 36 šrafovaných půldnů k 2026-09-09).
+
+Stav k 2026-09-09, ověřeno v Chromiu proti živým datům na obou stránkách: **0 šrafovaných
+půldnů, 0 červených buněk, banner skrytý, 0 JS chyb**, 25 měsíců se renderuje, 9 nepotvrzených
+záznamů skryto a vypsáno v panelu, archiv (1.–6. 9. 2026) se pořád kreslí světle, obsazenost
+srpna 2027 spadla z 22/31 na 15/31. Podvrženými daty ověřené i všechny čtyři větve:
+živá×živá → 5 červených buněk + 8 šraf + banner + oddělovač `#7B241C`; živá×duch → čistý pobyt;
+duch×duch → prázdno; archiv → světle.
+
+**⏭️ Stejná falešná hláška je pořád ve dvou dalších místech** (obojí v repu `villa-rudolf-site`),
+protože ani jedno `stale` nefiltruje: `/sprava/` (`sprava.js`, `detectConflictsClient`) a
+hlídač `n8n/VrConflictWatch` — ten navíc posílá e-maily. Viz tamní `STAV.md`.
 
 ### Šrafuje se JEN skutečná dvojitá rezervace (2026-08-13)
 
@@ -57,7 +93,7 @@ Oranžový čárkovaný rámeček + „?" (`.conflict-soft`) je **pryč z obou s
 starým záznamem zůstává v tooltipu a v banneru nad kalendářem — v jednom místě místo
 rozmazaný přes 15 buněk.
 
-`getDayHalves()` / `shown()` / `halfStyle()` / `findOverlaps()` / `renderConflictBanner()` jsou
+`isGhost()` / `getDayHalves()` / `shown()` / `halfStyle()` / `findOverlaps()` / `renderConflictBanner()` jsou
 v `index.html` i `owner.html` **duplicitně a musí zůstat identické** — obě stránky
 jsou samostatné, sdílený JS soubor tu není.
 
@@ -99,7 +135,13 @@ Co je na tom v tomhle repu podstatné:
 - **`kind`** v `history.json`: `hold` (předrezervace) / `direct` (potvrzená přímá rezervace).
   U záznamů z feedu pole není.
 - **Vzhled předrezervace** = světlá výplň + **čárkovaný fialový obrys** (`.half-*.pre`).
-  Ne stejný jako duch (tečkovaně) — dvě různé věci ve stejném vzhledu byla ta past ze srpna.
+  Ne stejný jako archivní záznam (tečkovaně) — dvě různé věci ve stejném vzhledu byla
+  ta past ze srpna.
+- **Předrezervace NENÍ duch.** `isGhost()` skrývá záznam, který z feedu *vypadl*;
+  předrezervace ve feedu ze své podstaty nikdy nebyla a přitom platí. Proto jí
+  `historyToEvents()` nikdy nenastaví `stale` (`!h.stale && !h.kind`) a filtrem
+  na začátku `renderCalendar()` projde. Skrýt ji by znamenalo nabízet obsazený
+  termín jako volný — přesně ta chyba, kvůli které modul vznikl.
 - **Předrezervace není úklid.** `getDayHalves()` vrací nově `isCleaning`; u holdu se
   nekreslí „↑10", nepočítá se do přehledu úklidů ani do majitelských KPI.
 - **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
@@ -108,8 +150,9 @@ Co je na tom v tomhle repu podstatné:
   blokace na platformě, ne druhá rezervace.
 - **Když RPC selže, holdy v archivu zůstanou** a běh pokračuje (na rozdíl od selhaného feedu).
 
-`isHold()` / `holdNote()` / `fmtISO()` / `halfCls()` jsou v `index.html` i `owner.html`
-**duplicitně a musí zůstat identické**, stejně jako zbytek půldenní logiky.
+`isHold()` / `holdNote()` / `fmtISO()` jsou v `index.html` i `owner.html`
+**duplicitně a musí zůstat identické**, stejně jako zbytek půldenní logiky
+(`getDayHalves` / `isGhost` / `shown` / `halfStyle` / `findOverlaps`).
 
 Ověřeno 2026-09-09 v Chromiu proti živým datům + podvrženým holdům: 25 měsíců, 0 JS chyb;
 předrezervace se kreslí čárkovaně, den odjezdu holdu **nemá** „↑10" a v přehledu úklidů
@@ -121,9 +164,8 @@ skriptu: `python3 .github/scripts/test_update_history.py` (hub mód pořád bajt
 zaloguje jako `::warning::` a jede dál v původním chování. Nasadit se to tedy dá v libovolném
 pořadí.
 
-Mimochodem se přitom opravila stará chyba v `owner.html`: `fetchAndMergeRemoteHistory()`
-z `history.json` **vůbec nečetl `stale`**, takže se v majitelském pohledu duchové kreslili
-jako plnohodnotné rezervace. `index.html` to dělal správně.
+Chybu v `owner.html`, kde `fetchAndMergeRemoteHistory()` zahazoval příznak `stale`, mezitím
+opravila stejná změna, která zavedla `isGhost` — obě session na ni narazily nezávisle.
 
 ## Čtyři feedy místo jednoho hubu (kód HOTOV 2026-08-13, čeká na 3 secrety)
 
@@ -197,6 +239,30 @@ Channel manager (Lodgify ap.) je **zamítnutý**: vyžaduje jednotnou měnu nap�
 CZK nepodporuje → Booking by musel prodávat v EUR, výplata by přišla v CZK a majitel by
 platil dvojí konverzi.
 
+## Ikona na ploše iPhonu (hotovo 2026-09-10)
+
+Obě stránky jdou přidat na plochu (Safari → **Sdílet → Přidat na plochu**) a spustí se
+jako appka bez adresního řádku:
+
+| stránka | ikona | název pod ikonou | manifest |
+|---|---|---|---|
+| `index.html` (úklid) | **modrá** `icons/icon-*.png` | Kalendář | `manifest.webmanifest` |
+| `owner.html` (majitel) | **zlatá** `icons/owner-icon-*.png` | Majitel | `owner.webmanifest` |
+
+Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se nedaly rozeznat.
+
+- **PNG se commitují**, nekreslí se za běhu. Zdroj je `icons/mkicons.py` (Pillow, vektorová
+  kresba do 4× plátna a zmenšení). Při změně barev pusť skript znovu, PNG přepíše na místě.
+  iOS bere pro `apple-touch-icon` **jen PNG** — SVG neumí, proto ta cesta přes generátor.
+- **Standalone nemá reload** prohlížeče. Data se tedy obnovují jen tlačítkem 🔄 Obnovit
+  v hlavičce stránky — to tam musí zůstat, jinak by na ploše šla dostat zaseknutá cache.
+- **Okraj stránky drží proměnná `--pad`**, media queries mění jen ji; `body` k ní přičítá
+  `env(safe-area-inset-*)`, aby obsah nelezl pod výřez a domovský indikátor. Nevracej
+  `body { padding: … }` zpátky do media queries.
+- ⚠️ **`owner.html` se po každém studeném startu zeptá na token.** Je to schválně:
+  token se drží jen v paměti stránky (`sessionToken`), nikde se neukládá a z URL se maže.
+  Ikona na ploše na tom nic nemění — ušetří jen hledání odkazu, ne přihlášení.
+
 ## Provozní pravidla (DŮLEŽITÉ)
 
 1. **Nikdy needitovat HTML přes GitHub web editor** — CM6 korumpuje backticky (`` ` `` → `f`).
@@ -233,11 +299,14 @@ platil dvojí konverzi.
   `history.json` dostal `firstSeen` / `lastSeen` / `stale`.
 - 2026-08-13: **šrafuje se jen skutečná dvojitá rezervace** (viz výš) — 15 matoucích
   šrafovaných buněk pryč, `.conflict-soft` zrušen.
+- 2026-09-09: **nepotvrzené záznamy se v kalendáři nezobrazují** (`isGhost`, viz výš) —
+  a v `owner.html` opraveno zahazování příznaku `stale` (archiv tam svítil červeně).
 - 2026-08-13: **čtení čtyř feedů** v `update_history.py` (hub/multi mode, filtr vlastních
   rezervací, kontinuita `uidh`, offline testy). Čeká na 3 secrety, zatím běží hub mode.
+- 2026-09-10: **ikona na plochu iPhonu** pro obě stránky (viz výš) — apple-touch-icon,
+  manifest, standalone režim a respektování safe-area.
 - 2026-09-09: **předrezervace a přímý prodej** (viz výš) — pátá platforma `Přímá`,
-  `kind` v `history.json`, čtení `vr_public_holds()` ze Supabase; opraveno čtení `stale`
-  v `owner.html`.
+  `kind` v `history.json`, čtení `vr_public_holds()` ze Supabase.
 - 2026-09-04: ručně smazán osiřelý duch `3d35fe03b6a04aef` (Airbnb, 17.–19. 9. 2026).
   V `feed.ics` nikdy nebyl, `firstSeen`/`lastSeen` obojí `null`, v repu už v prvním commitu
   (2026-08-07) — původ se z dat určit nedá. **Co ten pobyt byl, ověřené není** (feedy jména
