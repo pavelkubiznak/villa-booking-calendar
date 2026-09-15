@@ -309,10 +309,33 @@ def test_same_feed_clash_survives_collapse():
     hist = json.loads(read(cwd, 'history.json') or '[]')
     air = [e for e in hist if e['platform'] == 'Airbnb']
     check('both Airbnb bookings kept', len(air) == 2, str(hist))
-    check('the Booking mirror collapsed', not any(e['platform'] == 'Booking.com' for e in hist), str(hist))
-    check('collapse logged', 'same nights' in r.stdout, r.stdout[-400:])
+    # Která z těch dvou je zrcadlem té z Bookingu, se poznat nedá — nic se proto nezahodí.
+    check('nothing collapsed when one feed holds the same nights twice', len(hist) == 3, str(hist))
+    check('and the log says why', 'MORE THAN ONCE in one feed' in r.stdout, r.stdout[-600:])
     check('the same-feed clash is reported as a REAL double booking',
           'REAL double booking' in r.stdout, r.stdout[-600:])
+
+
+def test_clash_in_non_owner_feed_survives():
+    print('\nMULTI MODE — kolize ve feedu, který NENÍ vlastníkem termínu, se taky nesmí ztratit (Codex na #12)')
+    d_ = tempfile.mkdtemp(prefix='vr-clash2-')
+    w = lambda n, c: open(os.path.join(d_, n), 'w', encoding='utf-8').write(c)
+    # Airbnb feed: jeden vlastní pobyt. Booking feed: DVA vlastní na stejných nocích.
+    # Dřív rozhodlo pořadí čtení — vyhrál Airbnb a obě rezervace z Bookingu zmizely.
+    w('Airbnb.ics', calendar(vevent('a1@airbnb.com', 'Reserved', d(0), d(4))))
+    w('Booking.com.ics', calendar(
+        vevent('b1@booking.com', 'CLOSED - Not available', d(0), d(4)),
+        vevent('b2@booking.com', 'CLOSED - Not available', d(0), d(4)),
+    ))
+    cwd = workdir()
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    hist = json.loads(read(cwd, 'history.json') or '[]')
+    check('both Booking bookings kept',
+          sum(1 for e in hist if e['platform'] == 'Booking.com') == 2, str(hist))
+    check('and the Airbnb stay too', any(e['platform'] == 'Airbnb' for e in hist), str(hist))
+    check('nothing was collapsed', 'treated the rest as a mirror' not in r.stdout, r.stdout[-600:])
+    check('a double booking is reported', 'REAL double booking' in r.stdout, r.stdout[-600:])
 
 
 def test_uidh_continuity():
@@ -615,6 +638,7 @@ if __name__ == '__main__':
     test_partial_multi_mode()
     test_real_double_booking_survives()
     test_same_feed_clash_survives_collapse()
+    test_clash_in_non_owner_feed_survives()
     test_uidh_continuity()
     test_stale_archive_never_adopted()
     test_failed_feed_aborts()
