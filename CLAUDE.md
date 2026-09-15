@@ -106,6 +106,67 @@ půldnů + 4 červené buňky, oddělovač `#7B241C` na místě), a taky obě ne
 si pořád zaslouží pohledem zkontrolovat. Obsazenost v owner KPI se nemění (počítá se
 po nocích přes sjednocení dní, ne přes barvy).
 
+## Předrezervace a přímý prodej (kód HOTOV 2026-09-09, čeká na migraci v Supabase)
+
+Pobyt prodaný **napřímo** není v žádném feedu, takže pro tenhle repo — a přes `history.json`
+i pro veřejnou dostupnost na villarudolf.com — do teď neexistoval. Přesně tak zmizel termín
+**14.–21. 8. 2027**: majitel vystavil zálohovou fakturu, ta byla uhrazená, peníze dorazily
+do banky — a protože platba prošla bez povšimnutí, do systému se nedostalo nic. V kalendáři
+po tom týdnu zůstal jen mrtvý blok z Airbnb (`3f05fcf7c453a6b3`, ve feedu byl **jediný běh**
+29. 8. 2026 v 16:43, commit `80e7c62`, a hned zase zmizel).
+
+**Spouštěčem není platba, ale VYSTAVENÍ ZÁLOHOVÉ FAKTURY.** Tím vzniká předrezervace, která
+termín drží; platba jen rozhoduje, jestli přežije.
+
+```
+PŘEDREZERVACE ── uhrazeno do splatnosti ──▶ REZERVACE
+              ── neuhrazeno do hold_until ─▶ propadlá (termín se uvolní)
+```
+
+Zdroj pravdy je `/sprava/` (Supabase, `vr_holds`); Action tenhle repo krmí jedním RPC dotazem
+navíc — `vr_public_holds()`, který vrací **jen** `{uidh,start,end,kind,holdUntil}`. Detaily,
+včetně proč to má vlastní tabulku a proč propadnutí nepotřebuje cron, jsou
+v [`docs/CLAUDE-HANDOFF.md`](docs/CLAUDE-HANDOFF.md) → „Předrezervace a přímý prodej".
+
+Co je na tom v tomhle repu podstatné:
+
+- **Pátá platforma `Přímá`** (fialová `#8E44AD` / `#F4ECF7`) v `COL`/`LIGHT` obou stránek
+  i v `PLATFORMS` v `update_history.py`.
+- **`kind`** v `history.json`: `hold` (předrezervace) / `direct` (potvrzená přímá rezervace).
+  U záznamů z feedu pole není.
+- **Vzhled předrezervace** = světlá výplň + **čárkovaný fialový obrys** (`.half-*.pre`).
+  Ne stejný jako archivní záznam (tečkovaně) — dvě různé věci ve stejném vzhledu byla
+  ta past ze srpna.
+- **Předrezervace NENÍ duch.** `isGhost()` skrývá záznam, který z feedu *vypadl*;
+  předrezervace ve feedu ze své podstaty nikdy nebyla a přitom platí. Proto jí
+  `historyToEvents()` nikdy nenastaví `stale` (`!h.stale && !h.kind`) a filtrem
+  na začátku `renderCalendar()` projde. Skrýt ji by znamenalo nabízet obsazený
+  termín jako volný — přesně ta chyba, kvůli které modul vznikl.
+- **Předrezervace není úklid.** `getDayHalves()` vrací nově `isCleaning`; u holdu se
+  nekreslí „↑10", nepočítá se do přehledu úklidů ani do majitelských KPI.
+- **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
+  vlastní rezervace ven je samostatný krok (viz „Cíl dál" níž).
+- **Hold se shodným termínem jako živá událost z feedu se nepublikuje** — to je vlastní
+  blokace na platformě, ne druhá rezervace.
+- **Když RPC selže, holdy v archivu zůstanou** a běh pokračuje (na rozdíl od selhaného feedu).
+
+`isHold()` / `holdNote()` / `fmtISO()` jsou v `index.html` i `owner.html`
+**duplicitně a musí zůstat identické**, stejně jako zbytek půldenní logiky
+(`getDayHalves` / `isGhost` / `shown` / `halfStyle` / `findOverlaps`).
+
+Ověřeno 2026-09-09 v Chromiu proti živým datům + podvrženým holdům: 25 měsíců, 0 JS chyb;
+předrezervace se kreslí čárkovaně, den odjezdu holdu **nemá** „↑10" a v přehledu úklidů
+chybí, potvrzená přímá rezervace se chová jako běžný pobyt, a hold, který částečně koliduje
+s živou rezervací z Booking.com, správně vyvolá červený rámeček i banner. Offline testy
+skriptu: `python3 .github/scripts/test_update_history.py` (hub mód pořád bajtově shodný).
+
+⚠️ **Než Pavel spustí migraci `20260909_vr_holds.sql` v Supabase**, vrací RPC 404, skript to
+zaloguje jako `::warning::` a jede dál v původním chování. Nasadit se to tedy dá v libovolném
+pořadí.
+
+Chybu v `owner.html`, kde `fetchAndMergeRemoteHistory()` zahazoval příznak `stale`, mezitím
+opravila stejná změna, která zavedla `isGhost` — obě session na ni narazily nezávisle.
+
 ## Čtyři feedy místo jednoho hubu (kód HOTOV 2026-08-13, čeká na 3 secrety)
 
 Dřív se četl **jen** e-chalupy feed. E-chalupy fungují jako hub — mají cross-iCal na Airbnb,
@@ -244,6 +305,8 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
   rezervací, kontinuita `uidh`, offline testy). Čeká na 3 secrety, zatím běží hub mode.
 - 2026-09-10: **ikona na plochu iPhonu** pro obě stránky (viz výš) — apple-touch-icon,
   manifest, standalone režim a respektování safe-area.
+- 2026-09-09: **předrezervace a přímý prodej** (viz výš) — pátá platforma `Přímá`,
+  `kind` v `history.json`, čtení `vr_public_holds()` ze Supabase.
 - 2026-09-04: ručně smazán osiřelý duch `3d35fe03b6a04aef` (Airbnb, 17.–19. 9. 2026).
   V `feed.ics` nikdy nebyl, `firstSeen`/`lastSeen` obojí `null`, v repu už v prvním commitu
   (2026-08-07) — původ se z dat určit nedá. **Co ten pobyt byl, ověřené není** (feedy jména
