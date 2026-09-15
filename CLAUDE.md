@@ -156,6 +156,11 @@ Co je na tom v tomhle repu podstatné:
   Na feedové a ruční záznamy se nesahá. **Prázdné pole je platná odpověď** (archiv
   opravdu nic nedrží) a cache se podle něj srovná taky; vynechá se jen to podezřelé —
   rozbitý fetch, nevalidní JSON, nebo pole, ze kterého neprošel ani jeden řádek.
+  ⚠️ **Cena pobytu se při tom stěhuje.** Přímý prodej zablokovaný na platformě se vrátí
+  feedem pod **jiným `uidh`**, takže původní záznam zmizí a `pruneOrphanPrices()` by
+  ručně zadanou cenu zahodila jako osiřelou. `migrateDirectSalePrices()` (jen
+  `owner.html`, ceny jinde nejsou) ji proto v `load()` **před** prune přesune na náhradu
+  se shodným `(start, end)` — a nikdy nepřepíše cenu, kterou náhrada už má.
 - **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
   vlastní rezervace ven je samostatný krok (viz „Cíl dál" níž).
 - **Hold se shodným termínem jako živá událost z feedu se nepublikuje** — to je vlastní

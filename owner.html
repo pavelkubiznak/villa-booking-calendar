@@ -712,21 +712,27 @@ function jumpToMonth(id) {
 // rezervace. Přesně ten poplach, kvůli kterému isGhost vznikl.
 // Sahá se JEN na záznamy přímého prodeje: feedové drží archiv schválně (hub je
 // ztrátový) a ruční pobyt patří majiteli stránky, ne snapshotu.
+// Vrací smazané záznamy, ne jen počet: owner.html podle nich stěhuje ručně zadanou
+// cenu na náhradu, než ji pruneOrphanPrices() zahodí jako osiřelou.
 function dropVanishedDirectSales(liveUids) {
   const history = loadHistory();
-  let removed = 0;
+  const removed = [];
   Object.keys(history).forEach(uid => {
     const h = history[uid];
     if (!h || !h.kind) return;                        // z feedu nebo ruční
     if (String(uid).startsWith('manual-')) return;    // ruční pobyt snapshot nezná
     if (liveUids.has(uid)) return;
-    delete history[uid]; removed++;
+    removed.push(h); delete history[uid];
   });
-  if (removed) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {} }
+  if (removed.length) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {} }
   return removed;
 }
 
+// Co poslední srovnání cache smazalo — čeká to na migrateDirectSalePrices() v load().
+let vanishedDirectSales = [];
+
 async function fetchAndMergeRemoteHistory() {
+  vanishedDirectSales = [];
   try {
     const res = await fetch(REMOTE_HISTORY_URL + '?_=' + Date.now());
     if (!res.ok) return 0;
@@ -751,9 +757,9 @@ async function fetchAndMergeRemoteHistory() {
     // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se
     // zrušený hold musí z cache ztratit. Podezřelé je až pole, ze kterého neprošel
     // ani jeden řádek — to je změna schématu nebo poškozený soubor, ne prázdno.
-    if (data.length === 0 || events.length > 0) {
-      dropVanishedDirectSales(new Set(events.map(e => e.uid)));
-    }
+    vanishedDirectSales = (data.length === 0 || events.length > 0)
+      ? dropVanishedDirectSales(new Set(events.map(e => e.uid)))
+      : [];
     if (events.length === 0) return 0;
     mergeHistory(events);
     return events.length;
@@ -861,6 +867,29 @@ function pruneOrphanPrices(events) {
     Object.keys(prices).forEach(uid => { if (!valid.has(uid)) { delete prices[uid]; changed = true; } });
     if (changed) savePrices(prices);
   } catch (_) {}
+}
+
+// Přímý prodej, který si majitel zablokoval na platformě, se vrátí feedem pod JINÝM
+// uidh — původní záznam tedy ze snapshotu zmizí a srovnání cache ho smaže. Je to pořád
+// tentýž pobyt ve stejném termínu, ale cena visí na starém klíči, takže by ji
+// pruneOrphanPrices() zahodila jako osiřelou a pobyt by se tvářil jako neoceněný.
+// Cena se proto přestěhuje na náhradu se shodným (start, end) — jen pokud sama cenu
+// nemá, cizí zadanou cenu nikdy nepřepisujeme.
+function migrateDirectSalePrices(removed, events) {
+  if (!removed || !removed.length) return 0;
+  const prices = loadPrices();
+  let moved = 0;
+  removed.forEach(h => {
+    const p = prices[h.uid];
+    if (!p) return;
+    const heir = events.find(e => e.uid !== h.uid && +e.start === h.startTs && +e.end === h.endTs && !prices[e.uid]);
+    if (!heir) return;
+    prices[heir.uid] = { amount: p.amount, currency: p.currency, mtime: Date.now() };
+    delete prices[h.uid];
+    moved++;
+  });
+  if (moved) savePrices(prices);
+  return moved;
 }
 
 // price of a booking converted to CZK (null if no price set)
@@ -1380,6 +1409,9 @@ async function load(forceRefresh) {
     ]);
     saveCache(text);
     lastBookings = mergeHistory(parseICS(text));
+    // MUSÍ být před prune: cena zrušeného přímého prodeje se stěhuje na jeho náhradu,
+    // jinak ji prune zahodí jako osiřelou (viz migrateDirectSalePrices()).
+    migrateDirectSalePrices(vanishedDirectSales, lastBookings);
     pruneOrphanPrices(lastBookings);   // safe here: history is fully loaded (iCal + remote)
     renderCalendar(lastBookings);
     const now = new Date();
