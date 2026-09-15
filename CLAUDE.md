@@ -181,6 +181,12 @@ Co je na tom v tomhle repu podstatné:
   vrátí `None` (nedostupné), ne prázdný seznam. Prázdný seznam je pro `apply_holds()`
   rozkaz „žádné předrezervace neexistují" a smazal by z archivu všechen přímý prodej —
   prodané termíny by se začaly nabízet jako volné.
+  A když se zahodí **jen některý** řádek, vrátí `valid_holds()` navíc `complete=False`
+  a `apply_holds(..., prune_missing=False)` podle takového seznamu **jen přidává**: co
+  v něm chybí, zůstane v archivu. Neúplný seznam nejde odlišit od „ten hold už neplatí",
+  a smazat prodaný termín je horší než nechat tam o běh dýl něco propadlého. (Hold, který
+  v odpovědi **byl** a jen se nepublikoval kvůli blokaci z platformy, se nevrací —
+  to rozhodl feed, ne rozbitý řádek.)
 
 `isHold()` / `holdNote()` / `fmtISO()` jsou v `index.html` i `owner.html`
 **duplicitně a musí zůstat identické**, stejně jako zbytek půldenní logiky

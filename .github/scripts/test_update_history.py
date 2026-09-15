@@ -605,6 +605,31 @@ def test_direct_sales_all_rows_broken():
     check('a archiv se netváří jako prázdný', 'left untouched' in r.stdout)
 
 
+def test_direct_sales_partial_snapshot_keeps_the_rest():
+    """Neúplná odpověď smí jen přidávat — zahozený řádek nesmí uvolnit prodaný termín."""
+    print('\nPŘÍMÝ PRODEJ — částečně rozbitá odpověď nemaže, jen přidává')
+    d = tempfile.mkdtemp(prefix='vr-direct-partial-')
+    open(os.path.join(d, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('booking-1@e-chalupy.cz', 'Rezervace', '20270701', '20270708')))
+    # jeden platný řádek projde, druhý (rozbitý) se zahodí — a přesně ten drží 2222…
+    json.dump([
+        {'uidh': '3333333333333333', 'start': '2027-10-02', 'end': '2027-10-09',
+         'kind': 'hold', 'holdUntil': '2026-11-01'},
+        {'uidh': 'nonsense', 'start': '2027-09-04', 'end': '2027-09-11', 'kind': 'hold'},
+    ], open(os.path.join(d, 'holds.json'), 'w'))
+    seed = [{'uidh': '2222222222222222', 'start': '2027-09-04', 'end': '2027-09-11',
+             'platform': 'Přímá', 'kind': 'hold', 'holdUntil': '2026-10-01',
+             'firstSeen': '2026-09-01', 'lastSeen': '2026-09-01', 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    by = {e['uidh']: e for e in json.loads(read(cwd, 'history.json'))}
+    check('platný řádek se publikoval', '3333333333333333' in by, str(sorted(by)))
+    check('a ten, co v neúplné odpovědi chyběl, zůstal', '2222222222222222' in by, str(sorted(by)))
+    check('firstSeen se mu nepřepsal', by.get('2222222222222222', {}).get('firstSeen') == '2026-09-01')
+    check('log to říká', 'snapshot is incomplete' in r.stdout or 'snapshot incomplete' in r.stdout, r.stdout[-400:])
+
+
 def test_direct_sales_expiry_frees_the_term():
     """Propadlá předrezervace mizí sama — databáze ji přestane vracet, nic víc."""
     print('\nPŘÍMÝ PRODEJ — propadlý hold uvolní termín')
@@ -650,6 +675,7 @@ if __name__ == '__main__':
     test_direct_sales()
     test_direct_sales_source_unavailable()
     test_direct_sales_all_rows_broken()
+    test_direct_sales_partial_snapshot_keeps_the_rest()
     test_direct_sales_expiry_frees_the_term()
     test_dry_run_writes_nothing()
     if SKIPPED:

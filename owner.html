@@ -926,7 +926,10 @@ function migrateDirectSalePrices(removed, events) {
     // Zapsaný dědic mezitím mohl být zrušen nebo přeuložen pod jiným uidh. Cena na
     // mrtvém záznamu je ztracená, takže se dědic ověřuje znovu — a když neplatí,
     // hledá se živá náhrada na tentýž termín.
-    const still = events.find(e => e.uid === h.to && !e.stale && !e.kind && !prices[e.uid]);
+    // Termín se musí shodovat i u zapsaného dědice: pod stejným uidh mohl mezitím
+    // vzniknout přeplánovaný pobyt a cena patří tomu původnímu termínu, ne jemu.
+    const still = events.find(e => e.uid === h.to && !e.stale && !e.kind && !prices[e.uid]
+                                   && +e.start === h.startTs && +e.end === h.endTs);
     const heir  = still || liveHeir(h.startTs, h.endTs, from);
     if (heir) move(from, heir.uid);
     delete heirs[from]; heirsChanged = true;

@@ -587,24 +587,30 @@ def fetch_holds(fixtures=None):
 
 
 def valid_holds(rows):
-    """Drop anything malformed rather than letting it into the public archive."""
+    """Drop anything malformed rather than letting it into the public archive.
+
+    Vrací `(holds, complete)`. `complete` je False, když se něco zahodilo — pak ten
+    seznam NENÍ úplný obraz databáze a `apply_holds()` podle něj smí jen přidávat,
+    ne mazat: zahozený řádek by jinak znamenal, že prodaný termín zmizí z archivu
+    a začne se nabízet jako volný."""
     out = []
+    dropped = 0
     for h in rows or []:
         # Řádek, který není objekt (null v poli, holý řetězec), by na .get() shodil
         # celý běh — a ten by skončil dřív, než cokoli zapíše. Nepoužitelný přímý
         # prodej se zahazuje po řádcích, archiv kvůli němu nepadá.
         if not isinstance(h, dict):
-            print(f'::warning::hold that is not an object skipped: {h!r}'); continue
+            print(f'::warning::hold that is not an object skipped: {h!r}'); dropped += 1; continue
         uidh, start, end = h.get('uidh'), h.get('start'), h.get('end')
         kind = h.get('kind')
         if not (isinstance(uidh, str) and re.fullmatch(r'[0-9a-f]{16}', uidh)):
-            print(f'::warning::hold with a malformed uidh skipped: {uidh!r}'); continue
+            print(f'::warning::hold with a malformed uidh skipped: {uidh!r}'); dropped += 1; continue
         if not (ics_to_date(str(start).replace('-', '')) and ics_to_date(str(end).replace('-', ''))):
-            print(f'::warning::hold {uidh} has unusable dates ({start}→{end}) — skipped'); continue
+            print(f'::warning::hold {uidh} has unusable dates ({start}→{end}) — skipped'); dropped += 1; continue
         if end <= start:
-            print(f'::warning::hold {uidh} ends before it starts ({start}→{end}) — skipped'); continue
+            print(f'::warning::hold {uidh} ends before it starts ({start}→{end}) — skipped'); dropped += 1; continue
         if kind not in HOLD_KINDS:
-            print(f'::warning::hold {uidh} has unknown kind {kind!r} — skipped'); continue
+            print(f'::warning::hold {uidh} has unknown kind {kind!r} — skipped'); dropped += 1; continue
         out.append({'uidh': uidh, 'start': start, 'end': end, 'kind': kind,
                     'holdUntil': h.get('holdUntil')})
     # Přišly řádky, ale ani jeden nebyl použitelný → zdroj je rozbitý, ne prázdný.
@@ -615,17 +621,24 @@ def valid_holds(rows):
     if rows and not out:
         print('::warning::vr_public_holds returned rows but not one was usable — '
               'direct sales treated as unavailable so the archive is not wiped')
-        return None
-    return out
+        return None, False
+    if dropped:
+        print(f'::warning::{dropped} hold row(s) dropped — the snapshot is incomplete, '
+              f'so existing direct sales are kept instead of removed this run')
+    return out, dropped == 0
 
 
-def apply_holds(history, holds, feed_events, today_s):
+def apply_holds(history, holds, feed_events, today_s, prune_missing=True):
     """Merge direct sales into the archive. Returns a log of what happened.
 
     `holds is None` (database unreachable) leaves every existing hold untouched — the
     one case where doing nothing is right. Otherwise the set is REPLACED: a hold that
     expired or was cancelled disappears from the database and must disappear from the
     calendar too, which is exactly how a term frees itself without any scheduled job.
+
+    `prune_missing=False` (z odpovědi se něco zahodilo) to mazání vypne: co v seznamu
+    není, zůstane v archivu. Neúplný seznam totiž nejde odlišit od „ten hold už
+    neplatí", a smazat prodaný termín znamená nabízet ho jako volný.
 
     A hold whose dates match a live feed event day-for-day is dropped: that is this same
     stay blocked on a platform, and publishing both would draw a red double booking over
@@ -663,6 +676,21 @@ def apply_holds(history, holds, feed_events, today_s):
         history[h['uidh']] = entry
         log.append(f"{h['start']}→{h['end']} {h['kind']}"
                    + (f" (drží do {h['holdUntil']})" if h.get('holdUntil') else ''))
+
+    if not prune_missing:
+        # Co v neúplné odpovědi vůbec nebylo, se vrátí zpátky. Hold, který v ní BYL
+        # a jen se nepublikoval (kryje ho blokace z platformy), se nevrací — ten
+        # se zahodil schválně a na základě feedu, ne kvůli rozbitému řádku.
+        seen = {h['uidh'] for h in holds}
+        restored = 0
+        for uidh, entry in was.items():
+            if uidh in seen or uidh in history:
+                continue
+            history[uidh] = entry
+            restored += 1
+        if restored:
+            log.append(f'snapshot incomplete — {restored} existing direct-sale entr'
+                       f'{"y" if restored == 1 else "ies"} kept instead of removed')
     return log
 
 
@@ -873,8 +901,8 @@ def main():
     # Přímý prodej (předrezervace + potvrzené přímé rezervace) ze Supabase. Až ZA
     # feedy, aby se dalo poznat, který termín je zároveň zablokovaný na platformě.
     holds_raw = fetch_holds(fixtures)
-    holds = None if holds_raw is None else valid_holds(holds_raw)
-    for line in apply_holds(history, holds, events, today_s):
+    holds, holds_complete = (None, True) if holds_raw is None else valid_holds(holds_raw)
+    for line in apply_holds(history, holds, events, today_s, prune_missing=holds_complete):
         print('  direct: ' + line)
 
     # Prune older than 18 months
