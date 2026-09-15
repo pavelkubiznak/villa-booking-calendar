@@ -728,11 +728,12 @@ function dropVanishedDirectSales(liveUids) {
   return removed;
 }
 
-// Co poslední srovnání cache smazalo — čeká to na migrateDirectSalePrices() v load().
-let vanishedDirectSales = [];
+// Snapshot je načtený, ale SMAZAT podle něj se smí až na úspěšné větvi load() — viz
+// komentář u přiřazení níž. Tady se jen zapamatuje, co bylo v poslední platné odpovědi.
+let pendingSnapshotUids = null;
 
 async function fetchAndMergeRemoteHistory() {
-  vanishedDirectSales = [];
+  pendingSnapshotUids = null;
   try {
     const res = await fetch(REMOTE_HISTORY_URL + '?_=' + Date.now());
     if (!res.ok) return 0;
@@ -757,9 +758,14 @@ async function fetchAndMergeRemoteHistory() {
     // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se
     // zrušený hold musí z cache ztratit. Podezřelé je až pole, ze kterého neprošel
     // ani jeden řádek — to je změna schématu nebo poškozený soubor, ne prázdno.
-    vanishedDirectSales = (data.length === 0 || events.length > 0)
-      ? dropVanishedDirectSales(new Set(events.map(e => e.uid)))
-      : [];
+    // Mazat se smí AŽ v load(), na úspěšné větvi. Feed i vzdálený ceník se stahují
+    // paralelně s tímhle: kdyby se smazalo hned a feed pak spadl, load() skočí do catch,
+    // migrace ceny neproběhne — a při dalším obnovení už nebude co stěhovat, protože
+    // záznam v cache nebude. Odložené smazání znamená, že se nepovedený běh prostě
+    // zopakuje celý.
+    pendingSnapshotUids = (data.length === 0 || events.length > 0)
+      ? new Set(events.map(e => e.uid))
+      : null;
     if (events.length === 0) return 0;
     mergeHistory(events);
     return events.length;
@@ -882,7 +888,11 @@ function migrateDirectSalePrices(removed, events) {
   removed.forEach(h => {
     const p = prices[h.uid];
     if (!p) return;
-    const heir = events.find(e => e.uid !== h.uid && +e.start === h.startTs && +e.end === h.endTs && !prices[e.uid]);
+    // Dědic je JEN živá událost z feedu — ta blokace, kvůli které přímý prodej ze
+    // snapshotu vypadl. Archivní záznam (`stale`) je duch, kalendář ho skrývá a cena
+    // na něm by byla ztracená stejně; jiný přímý prodej (`kind`) náhrada není.
+    const heir = events.find(e => e.uid !== h.uid && !e.stale && !e.kind
+                                  && +e.start === h.startTs && +e.end === h.endTs && !prices[e.uid]);
     if (!heir) return;
     prices[heir.uid] = { amount: p.amount, currency: p.currency, mtime: Date.now() };
     delete prices[h.uid];
@@ -1408,10 +1418,13 @@ async function load(forceRefresh) {
       fetchAndMergeRemotePrices(),
     ]);
     saveCache(text);
+    // Teprve tady je jisté, že dorazil feed i vzdálený ceník. Srovnání cache a migrace
+    // ceny musí proběhnout spolu a v tomhle pořadí: co se smaže, musí hned předat cenu
+    // své náhradě, jinak ji pruneOrphanPrices() zahodí jako osiřelou.
+    const goneDirect = pendingSnapshotUids ? dropVanishedDirectSales(pendingSnapshotUids) : [];
+    pendingSnapshotUids = null;
     lastBookings = mergeHistory(parseICS(text));
-    // MUSÍ být před prune: cena zrušeného přímého prodeje se stěhuje na jeho náhradu,
-    // jinak ji prune zahodí jako osiřelou (viz migrateDirectSalePrices()).
-    migrateDirectSalePrices(vanishedDirectSales, lastBookings);
+    migrateDirectSalePrices(goneDirect, lastBookings);
     pruneOrphanPrices(lastBookings);   // safe here: history is fully loaded (iCal + remote)
     renderCalendar(lastBookings);
     const now = new Date();

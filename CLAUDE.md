@@ -161,6 +161,12 @@ Co je na tom v tomhle repu podstatné:
   ručně zadanou cenu zahodila jako osiřelou. `migrateDirectSalePrices()` (jen
   `owner.html`, ceny jinde nejsou) ji proto v `load()` **před** prune přesune na náhradu
   se shodným `(start, end)` — a nikdy nepřepíše cenu, kterou náhrada už má.
+  Dědic musí být **živá událost z feedu** (`!stale && !kind`): archivní duch na stejný
+  termín kalendář stejně skrývá, takže cena na něm je ztracená.
+  Proto taky `owner.html` **maže až na úspěšné větvi `load()`** (`pendingSnapshotUids`),
+  ne hned při načtení snapshotu: feed a vzdálený ceník se stahují paralelně, a kdyby se
+  smazalo dřív a feed pak spadl, migrace ceny by neproběhla a při dalším obnovení už by
+  nebylo co stěhovat. `index.html` ceny nemá, takže tam se maže rovnou.
 - **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
   vlastní rezervace ven je samostatný krok (viz „Cíl dál" níž).
 - **Hold se shodným termínem jako živá událost z feedu se nepublikuje** — to je vlastní
