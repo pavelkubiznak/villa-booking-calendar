@@ -186,28 +186,45 @@ def ics_to_date(s):
     except: return None
 
 
+def published_value(raw, day):
+    """What feed.ics carries for an iCal value: a UTC DATE-TIME (`…Z`) becomes the
+    Prague calendar DATE ics_to_date() resolved it to (only when the tz database is
+    present — otherwise both sides fall back to the same date-only cut anyway);
+    anything else is copied as written."""
+    if LOCAL_TZ is not None and re.fullmatch(r'\d{8}T\d{6}Z', raw.strip()):
+        return day.strftime('%Y%m%d')
+    return raw
+
+
 def implied_dtend(dtstart, duration):
-    """DTEND value a VEVENT without one implies (RFC 5545 §3.6.1): DTSTART + DURATION
-    (whole weeks/days only), or one day for a DATE-only DTSTART. Returns None when
-    nothing sensible applies — a DATE-TIME start with no usable DURATION is a
-    zero-length event, not a stay. Same shape as DTSTART, so it round-trips through
-    ics_to_date() and build_feed() like a real DTEND."""
-    days = None
-    m = re.fullmatch(r'P(?:(\d+)W)?(?:(\d+)D)?(?:T.*)?', duration or '')
-    if duration and m and (m.group(1) or m.group(2)):
-        days = 7 * int(m.group(1) or 0) + int(m.group(2) or 0)
-    elif re.fullmatch(r'\d{8}', dtstart):
-        days = 1
-    if days is None:
-        return None
-    m = re.fullmatch(r'(\d{8})(T\d{6}Z?)?', dtstart)
+    """DTEND value a VEVENT without one implies (RFC 5545 §3.6.1): DTSTART + DURATION,
+    or one day for a DATE-only DTSTART. The whole DURATION counts — weeks, days AND the
+    time part (`P1DT12H` is 36 h, not one day). A DATE-only start with a time part is
+    invalid per §3.8.2.5 and yields None rather than a silently rounded day; a DATE-TIME
+    start with no usable DURATION is a zero-length event, not a stay → None. Same shape
+    as DTSTART, so it round-trips through ics_to_date() and build_feed() like a real DTEND."""
+    m = re.fullmatch(r'(\d{8})(?:T(\d{6})(Z?))?', dtstart)
     if not m:
         return None
+    date_only = m.group(2) is None
+    dm = re.fullmatch(r'P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?',
+                      duration or '')
+    if duration and dm and any(g is not None for g in dm.groups()):
+        w, dd, h, mi, sec = (int(g or 0) for g in dm.groups())
+        if date_only and (h or mi or sec):
+            return None
+        delta = timedelta(weeks=w, days=dd, hours=h, minutes=mi, seconds=sec)
+    elif date_only:
+        delta = timedelta(days=1)
+    else:
+        return None
     try:
-        d = datetime.strptime(m.group(1), '%Y%m%d') + timedelta(days=days)
+        if date_only:
+            return (datetime.strptime(m.group(1), '%Y%m%d') + delta).strftime('%Y%m%d')
+        dt = datetime.strptime(m.group(1) + m.group(2), '%Y%m%d%H%M%S') + delta
+        return dt.strftime('%Y%m%dT%H%M%S') + m.group(3)
     except ValueError:
         return None
-    return d.strftime('%Y%m%d') + (m.group(2) or '')
 
 
 def uid_channel(uid):
@@ -251,6 +268,11 @@ def parse_ics(text):
                 continue
         start, end = ics_to_date(dtstart), ics_to_date(dtend)
         if not start or not end:                continue
+        # A UTC value is published as the Prague DATE it was converted to, so feed.ics
+        # and history.json name the same day. Left raw, the clients would cut the time
+        # off the Z value and the fresh feed (merged last) would drag the stay back
+        # to the UTC day — one day early. Floating values pass through untouched.
+        dtstart, dtend = published_value(dtstart, start), published_value(dtend, end)
         events.append({
             'uidh':    uid_hash(uid),
             'uid_ch':  uid_channel(uid),
@@ -315,7 +337,8 @@ def collapse_cross_feed_duplicates(events):
     /sprava/ have been keyed on all along); failing that the first one read.
 
     Same-feed duplicates are left alone: those are a real same-platform clash and
-    report_overlaps() must see them."""
+    report_overlaps() must see them — also inside a collapsed group, where every event
+    of the winning feed survives and only the other feeds' copies go."""
     by_span = {}
     for e in events:
         by_span.setdefault((e['start'], e['end']), []).append(e)
@@ -326,7 +349,10 @@ def collapse_cross_feed_duplicates(events):
             continue
         owner = (next((e for e in group if e['uid_ch'] == e['feed_ch']), None)
                  or next((e for e in group if e['feed_ch'] == 'E-chalupy'), group[0]))
-        kept.append(owner)
+        # Only the copies from OTHER feeds are mirrors. Everything the winning feed
+        # itself holds on this span stays — two bookings on the same nights in one feed
+        # are a real same-platform clash and report_overlaps() must still see both.
+        kept.extend(e for e in group if e['feed_ch'] == owner['feed_ch'])
         collapsed.append((span, [e['feed_ch'] for e in group], owner['platform']))
     return kept, collapsed
 
