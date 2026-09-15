@@ -583,6 +583,28 @@ def test_direct_sales_source_unavailable():
     check('log to říká', 'left untouched' in r.stdout)
 
 
+def test_direct_sales_all_rows_broken():
+    """Rozbitá odpověď není prázdná odpověď — archiv se kvůli ní nesmí vyprázdnit."""
+    print('\nPŘÍMÝ PRODEJ — samé rozbité řádky drží archiv beze změny')
+    d = tempfile.mkdtemp(prefix='vr-direct-junk-')
+    open(os.path.join(d, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('booking-1@e-chalupy.cz', 'Rezervace', '20270701', '20270708')))
+    # nic z toho neprojde validací — a přitom to NENÍ „žádné předrezervace neexistují"
+    json.dump([None, 'tohle objekt není', {'uidh': 'nonsense'}], open(os.path.join(d, 'holds.json'), 'w'))
+    seed = [{'uidh': '2222222222222222', 'start': '2027-09-04', 'end': '2027-09-11',
+             'platform': 'Přímá', 'kind': 'hold', 'holdUntil': '2026-10-01',
+             'firstSeen': '2026-09-01', 'lastSeen': '2026-09-01', 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    by = {e['uidh']: e for e in json.loads(read(cwd, 'history.json'))}
+    kept = by.get('2222222222222222', {})
+    check('předrezervace zůstala', bool(kept), str(by.keys()))
+    check('pořád drží termín (není duch)', kept.get('stale') is False, str(kept.get('stale')))
+    check('log to říká', 'not one was usable' in r.stdout)
+    check('a archiv se netváří jako prázdný', 'left untouched' in r.stdout)
+
+
 def test_direct_sales_expiry_frees_the_term():
     """Propadlá předrezervace mizí sama — databáze ji přestane vracet, nic víc."""
     print('\nPŘÍMÝ PRODEJ — propadlý hold uvolní termín')
@@ -627,6 +649,7 @@ if __name__ == '__main__':
     test_cli()
     test_direct_sales()
     test_direct_sales_source_unavailable()
+    test_direct_sales_all_rows_broken()
     test_direct_sales_expiry_frees_the_term()
     test_dry_run_writes_nothing()
     if SKIPPED:

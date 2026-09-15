@@ -607,6 +607,15 @@ def valid_holds(rows):
             print(f'::warning::hold {uidh} has unknown kind {kind!r} — skipped'); continue
         out.append({'uidh': uidh, 'start': start, 'end': end, 'kind': kind,
                     'holdUntil': h.get('holdUntil')})
+    # Přišly řádky, ale ani jeden nebyl použitelný → zdroj je rozbitý, ne prázdný.
+    # Prázdný seznam je pro apply_holds() rozkaz „žádné předrezervace neexistují" a smazal
+    # by z archivu všechen přímý prodej — termíny, které jsou fakt prodané, by se začaly
+    # nabízet jako volné. To je horší chyba než nechat tam o běh dýl něco propadlého,
+    # takže se to hlásí jako nedostupný zdroj (`None`) a archiv zůstane, jak byl.
+    if rows and not out:
+        print('::warning::vr_public_holds returned rows but not one was usable — '
+              'direct sales treated as unavailable so the archive is not wiped')
+        return None
     return out
 
 
