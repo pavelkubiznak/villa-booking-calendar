@@ -55,8 +55,13 @@ blocks availability, we simply stop treating those mirrored blocks as bookings.
 MODES (chosen automatically, so nothing changes until the secrets exist):
   HUB MODE    — only the e-chalupy feed is configured. Behaves exactly as before:
                 the platform is derived from the UID of each event.
-  MULTI MODE  — two or more feeds configured. The platform is the CHANNEL THE FEED
-                BELONGS TO, and each feed is filtered down to its own reservations.
+  MULTI MODE  — two or more feeds configured. Each feed is filtered down to its own
+                reservations, so the platform is the CHANNEL THE FEED BELONGS TO.
+                A foreign-looking event that is KEPT because its home feed is not
+                configured (partial setup, e.g. only Airbnb + the hub) keeps the
+                platform its UID implies — exactly what hub mode would say — so it
+                still matches the archive on (start, end, platform) and never poses
+                as a second, conflicting stay under the reading channel's name.
 
 Feed URLs come from the environment (they are private keys — never commit them):
     ICAL_URL_AIRBNB · ICAL_URL_BOOKING · ICAL_URL_FEWO · ICAL_URL_ECHALUPY
@@ -74,8 +79,10 @@ channels. Two signals separate them:
      i.e. when we are certain to pick that stay up from its own feed. If the implied
      channel is not configured, the event is KEPT (a duplicate is a lesser evil than
      a lost booking) and logged.
-  2. SUMMARY markers. Known block texts per channel (e.g. Airbnb's "Airbnb (Not
-     available)", which it writes for every blocked day).
+  2. SUMMARY markers. Known block texts per channel. Airbnb's "Airbnb (Not
+     available)" (written for every blocked day, and mirrored into the hub) is noise
+     in EVERY feed and EVERY mode — hub mode has always dropped it, so multi mode
+     drops it regardless of which feeds happen to be configured.
 
 Every dropped event is logged with its dates and the reason, and a feed that yields
 zero own bookings out of a non-empty calendar raises a warning — a wrong rule shows up
@@ -95,7 +102,6 @@ So when a newly-seen event exactly matches an archived entry on (start, end, pla
 this script ADOPTS the archived uidh instead of inserting a new record. Each adoption is
 logged. One archived uidh can be adopted at most once per run.
 
-================================================================================
 DIRECT SALES / PRE-BOOKINGS (2026-09-09)
 ================================================================================
 A stay sold directly — phone, e-mail, an e-chalupy inquiry answered with a proforma
@@ -135,11 +141,25 @@ They are deliberately NOT written into feed.ics. That file is the sanitized mirr
 what the platforms say; publishing our own bookings outward is a separate step (see
 "Cíl dál" in CLAUDE.md), and mixing the two would make it impossible to tell which is
 which.
-"""
+=======
+Only LIVE archived entries are eligible. A `stale` entry is a stay the feed stopped
+listing (cancelled, expired hold, edited away); a different guest booking the very same
+nights on the same platform must NOT inherit its uidh, or /sprava/ would glue the old
+guest's records onto the new stay. Such a match is reported instead — if it really is
+the same stay (the hub dropped it, see above), the owner re-links it by hand.
 
-import json, os, re, sys, hashlib
-from datetime import datetime, timedelta
+========================================================================="""
+
+import argparse, json, os, re, sys, hashlib
+from datetime import datetime, timedelta, timezone
+from urllib.error import HTTPError
 from urllib.request import urlopen, Request
+
+try:
+    from zoneinfo import ZoneInfo
+    LOCAL_TZ = ZoneInfo('Europe/Prague')
+except Exception:               # no tz database on this box — see ics_to_date()
+    LOCAL_TZ = None
 
 HISTORY_FILE = 'data/history.json'
 FEED_FILE    = 'data/feed.ics'
@@ -179,6 +199,10 @@ FEEDS = (
     {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY', 'fallback': LEGACY_HUB_URL},
 )
 
+# Airbnb writes this SUMMARY for every blocked (not booked) day and the hub mirrors it
+# as a one-day event. It is never a stay — dropped in every mode, from every feed.
+AIRBNB_NOISE = 'airbnb (not available)'
+
 # SUMMARY texts that mark a blocked/mirrored day rather than a reservation of this
 # channel's own. Matched case-insensitively against the whole (stripped) SUMMARY.
 BLOCK_SUMMARIES = {
@@ -199,10 +223,48 @@ def uid_hash(uid):
 
 
 def ics_to_date(s):
+    """Calendar date of an iCal DATE / DATE-TIME value (midnight datetime).
+
+    DATE and floating DATE-TIME values are taken as written (the hub sends floating
+    local time). A UTC value (trailing Z) is converted to Europe/Prague first: Prague
+    midnight is 22:00Z / 23:00Z the day BEFORE, so cutting the time off would move a
+    stay one day early. Without a tz database the old date-only cut is used."""
+    m = re.fullmatch(r'(\d{8})T(\d{6})Z', s.strip())
+    if m and LOCAL_TZ is not None:
+        try:
+            utc = datetime.strptime(m.group(1) + m.group(2), '%Y%m%d%H%M%S')
+            loc = utc.replace(tzinfo=timezone.utc).astimezone(LOCAL_TZ)
+            return datetime(loc.year, loc.month, loc.day)
+        except ValueError:
+            return None
     s = re.sub(r'[TZ].*', '', s)
     if len(s) < 8: return None
     try:    return datetime(int(s[0:4]), int(s[4:6]), int(s[6:8]))
     except: return None
+
+
+def implied_dtend(dtstart, duration):
+    """DTEND value a VEVENT without one implies (RFC 5545 §3.6.1): DTSTART + DURATION
+    (whole weeks/days only), or one day for a DATE-only DTSTART. Returns None when
+    nothing sensible applies — a DATE-TIME start with no usable DURATION is a
+    zero-length event, not a stay. Same shape as DTSTART, so it round-trips through
+    ics_to_date() and build_feed() like a real DTEND."""
+    days = None
+    m = re.fullmatch(r'P(?:(\d+)W)?(?:(\d+)D)?(?:T.*)?', duration or '')
+    if duration and m and (m.group(1) or m.group(2)):
+        days = 7 * int(m.group(1) or 0) + int(m.group(2) or 0)
+    elif re.fullmatch(r'\d{8}', dtstart):
+        days = 1
+    if days is None:
+        return None
+    m = re.fullmatch(r'(\d{8})(T\d{6}Z?)?', dtstart)
+    if not m:
+        return None
+    try:
+        d = datetime.strptime(m.group(1), '%Y%m%d') + timedelta(days=days)
+    except ValueError:
+        return None
+    return d.strftime('%Y%m%d') + (m.group(2) or '')
 
 
 def uid_channel(uid):
@@ -234,8 +296,16 @@ def parse_ics(text):
         summary = get('SUMMARY')
         dtstart, dtend, status = get('DTSTART'), get('DTEND'), get('STATUS')
         dtstamp = get('DTSTAMP')
-        if not uid or not dtstart or not dtend: continue
+        if not uid or not dtstart:              continue
         if status and status != 'CONFIRMED':    continue
+        if not dtend:
+            dtend = implied_dtend(dtstart, get('DURATION'))
+            if not dtend:
+                # Say so (no UID — it is the reservation number) instead of losing a
+                # stay silently; the live hub always sends DTEND, so this is rare.
+                print(f'    ! skipped VEVENT starting {dtstart[:8]}: no DTEND and no '
+                      f'usable DURATION (RFC 5545 gives it zero length)')
+                continue
         start, end = ics_to_date(dtstart), ics_to_date(dtend)
         if not start or not end:                continue
         events.append({
@@ -251,6 +321,11 @@ def parse_ics(text):
     return events
 
 
+def is_airbnb_noise(e):
+    """The one filter hub mode has always applied — exact match, see AIRBNB_NOISE."""
+    return e['summary'] == AIRBNB_NOISE
+
+
 def own_bookings(events, channel, configured):
     """Keep only the reservations this channel actually owns.
 
@@ -260,6 +335,9 @@ def own_bookings(events, channel, configured):
     kept, dropped = [], []
     blockers = BLOCK_SUMMARIES.get(channel, ())
     for e in events:
+        if is_airbnb_noise(e):
+            dropped.append((e, 'Airbnb auto-block noise (dropped in every mode)'))
+            continue
         if blockers and any(b in e['summary'] for b in blockers):
             dropped.append((e, 'block marker in SUMMARY'))
             continue
@@ -268,7 +346,7 @@ def own_bookings(events, channel, configured):
                 dropped.append((e, f"mirrored from {e['uid_ch']} (read separately)"))
                 continue
             dropped.append((e, f"looks like {e['uid_ch']} but that feed is not "
-                               f"configured — KEPT to avoid losing it"))
+                               f"configured — KEPT as {e['uid_ch']} to avoid losing it"))
             kept.append(e)          # deliberately kept; the log line says so
             continue
         kept.append(e)
@@ -286,26 +364,40 @@ def collapse_cross_feed_duplicates(events):
     a genuine double booking almost never lines up to the same day on both sides — and
     every collapse is logged loudly so a real one cannot pass unnoticed.
 
-    Same-channel duplicates are left alone: those are a real same-platform clash and
+    "Different channels" means different FEEDS (`feed_ch`), not different platform
+    labels: in a partial setup a kept foreign event carries its UID's platform, so a
+    Booking stay mirrored in the Airbnb feed and the same stay in the hub feed are both
+    labelled Booking.com — still one stay, still collapsed. The one from its own
+    channel's feed wins; failing that the hub's copy (its UID is what the archive and
+    /sprava/ have been keyed on all along); failing that the first one read.
+
+    Same-feed duplicates are left alone: those are a real same-platform clash and
     report_overlaps() must see them."""
     by_span = {}
     for e in events:
         by_span.setdefault((e['start'], e['end']), []).append(e)
     kept, collapsed = [], []
     for span, group in by_span.items():
-        if len(group) < 2 or len({e['platform'] for e in group}) < 2:
+        if len(group) < 2 or len({e['feed_ch'] for e in group}) < 2:
             kept.extend(group)
             continue
-        owner = next((e for e in group if e['uid_ch'] == e['platform']), group[0])
+        owner = (next((e for e in group if e['uid_ch'] == e['feed_ch']), None)
+                 or next((e for e in group if e['feed_ch'] == 'E-chalupy'), group[0]))
         kept.append(owner)
-        collapsed.append((span, [e['platform'] for e in group], owner['platform']))
+        collapsed.append((span, [e['feed_ch'] for e in group], owner['platform']))
     return kept, collapsed
 
 
-def build_feed(events):
+def build_feed(events, rfc_dates=False):
     """Serialize a SANITIZED iCal snapshot from parsed events.
     SUMMARY = platform, UID = uidh; no Description / Attendee / Organizer / contact
-    fields are ever emitted. Deterministic order → no spurious commits."""
+    fields are ever emitted. Deterministic order → no spurious commits.
+
+    `rfc_dates` (MULTI MODE): an all-day value (`20261001`) is written with the
+    `;VALUE=DATE` parameter RFC 5545 requires — bare, it would claim to be a DATE-TIME
+    and a strict subscriber would reject the feed. HUB MODE keeps writing it bare
+    because its output must stay byte-identical to the pre-multi-feed script (the live
+    hub sends DATE-TIME values only, so nothing invalid is published there)."""
     lines = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
@@ -315,8 +407,9 @@ def build_feed(events):
     ]
     for e in sorted(events, key=lambda x: (x['dtstart'], x['uidh'])):
         lines.append('BEGIN:VEVENT')
-        lines.append('DTSTART:' + e['dtstart'])
-        lines.append('DTEND:'   + e['dtend'])
+        for key, val in (('DTSTART', e['dtstart']), ('DTEND', e['dtend'])):
+            param = ';VALUE=DATE' if rfc_dates and re.fullmatch(r'\d{8}', val) else ''
+            lines.append(f'{key}{param}:{val}')
         if e['dtstamp']:
             lines.append('DTSTAMP:' + e['dtstamp'])
         lines.append('SUMMARY:' + e['platform'])
@@ -381,7 +474,7 @@ def load_history():
     return history
 
 
-def adopt_existing_uidh(events, history, today_s):
+def adopt_existing_uidh(events, history, today):
     """Carry archived uidh over to the same stay arriving under a new UID.
 
     Switching a stay from the hub feed to its home channel's feed changes its UID, hence
@@ -389,25 +482,37 @@ def adopt_existing_uidh(events, history, today_s):
     vr_bookings.uidh join used by /sprava/. So an event that is new to us but matches an
     archived entry on (start, end, platform) inherits that entry's uidh.
 
-    Only archived entries not already claimed in this run are eligible, and each is
-    adopted at most once. Returns a log of (old_uidh, new_uidh, start, end, platform)."""
+    Only LIVE archived entries not already claimed in this run are eligible, and each
+    is adopted at most once. A `stale` entry is never adopted — it is a cancelled or
+    expired stay, and a new guest on the same nights must not inherit its /sprava/
+    records; such a match is reported so the owner can re-link by hand when it really
+    is the same stay (the hub dropped it). `today` is the run date (datetime).
+
+    Returns (adopted, refused), both lists of (old_uidh, new_uidh, start, end, platform)."""
     seen_now = {e['uidh'] for e in events}
-    by_key = {}
+    by_key, stale_by_key = {}, {}
     for h in history.values():
         if h['uidh'] in seen_now:
             continue                      # still arriving under its own uidh — leave it
-        by_key.setdefault((h['start'], h['end'], h['platform']), []).append(h)
-    adopted = []
+        key = (h['start'], h['end'], h['platform'])
+        if is_stale(h.get('lastSeen'), today):
+            stale_by_key.setdefault(key, []).append(h)    # reported, never adopted
+        else:
+            by_key.setdefault(key, []).append(h)
+    adopted, refused = [], []
     for e in events:
         if e['uidh'] in history:
             continue                      # already known under this uidh
-        bucket = by_key.get((e['start'], e['end'], e['platform']))
+        key = (e['start'], e['end'], e['platform'])
+        bucket = by_key.get(key)
         if not bucket:
+            if key in stale_by_key:
+                refused.append((stale_by_key[key][0]['uidh'], e['uidh'], *key))
             continue
         old = bucket.pop(0)
         adopted.append((old['uidh'], e['uidh'], e['start'], e['end'], e['platform']))
         e['uidh'] = old['uidh']
-    return adopted
+    return adopted, refused
 
 
 def fetch_holds(fixtures=None):
@@ -571,16 +676,33 @@ def resolve_feeds(fixtures=None):
     return out
 
 
+class FeedError(Exception):
+    """A fetch failure with the URL scrubbed out. urllib quotes the offending URL —
+    key and all — in ValueError / InvalidURL messages, and the Actions log of a public
+    repo is public. Raised `from None`, so even an uncaught one cannot drag the original
+    message into a traceback."""
+
+
 def fetch(feed):
-    """Read one feed. NB: never print the URL — it holds the private feed key."""
+    """Read one feed. NB: never print the URL — it holds the private feed key. Every
+    failure surfaces as FeedError carrying only the exception class (plus the HTTP
+    status when there is one)."""
     if 'path' in feed:
         with open(feed['path'], encoding='utf-8') as fh:
             return fh.read()
-    req = Request(feed['url'], headers={
-        'User-Agent': 'Mozilla/5.0 (compatible; villa-calendar-bot/1.0)'
-    })
-    with urlopen(req, timeout=30) as r:
-        return r.read().decode('utf-8', errors='replace')
+    url = feed['url']
+    if not re.match(r'https?://', url):
+        raise FeedError('URL has no http(s):// scheme — check the secret')
+    try:
+        req = Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; villa-calendar-bot/1.0)'
+        })
+        with urlopen(req, timeout=30) as r:
+            return r.read().decode('utf-8', errors='replace')
+    except HTTPError as e:
+        raise FeedError(f'HTTP {e.code}') from None
+    except Exception as e:
+        raise FeedError(type(e).__name__) from None
 
 
 def collect_events(feeds, multi):
@@ -593,7 +715,10 @@ def collect_events(feeds, multi):
         try:
             text = fetch(feed)
         except Exception as e:
-            print(f'::error::{ch}: fetch failed: {e}', file=sys.stderr)
+            # Only the class name / FeedError's own text reach the log — never str()
+            # of a urllib exception, which may quote the URL with the key in it.
+            why = str(e) if isinstance(e, FeedError) else type(e).__name__
+            print(f'::error::{ch}: fetch failed — {why}', file=sys.stderr)
             ok = False
             continue
         if 'BEGIN:VCALENDAR' not in text:
@@ -605,16 +730,23 @@ def collect_events(feeds, multi):
         if not multi:
             # HUB MODE — unchanged behaviour: the UID decides the platform, and the only
             # filter is Airbnb's "not available" auto-block noise.
-            kept = [e for e in parsed if e['summary'] != 'airbnb (not available)']
+            kept = [e for e in parsed if not is_airbnb_noise(e)]
             for e in kept:
                 e['platform'] = e['uid_ch']
+                e['feed_ch']  = ch
             print(f'{ch}: {len(parsed)} events → {len(kept)} bookings (hub mode)')
             events.extend(kept)
             continue
 
         kept, dropped = own_bookings(parsed, ch, configured)
         for e in kept:
-            e['platform'] = ch          # the channel owns it — no UID guessing
+            # Own reservation: uid_ch == ch, so this IS the channel the feed belongs
+            # to. A foreign event kept because its home feed is not configured keeps
+            # the platform its UID implies (what hub mode says) — labelling it with
+            # the reading channel would break uidh adoption against the archive and
+            # raise a false double booking against the hub's copy of the same stay.
+            e['platform'] = e['uid_ch']
+            e['feed_ch']  = ch
         print(f'{ch}: {len(parsed)} events → {len(kept)} own bookings, {len(dropped)} filtered')
         for e, why in dropped:
             print(f"    - {e['start']}→{e['end']}: {why}")
@@ -625,11 +757,19 @@ def collect_events(feeds, multi):
     return events, ok
 
 
+def parse_args(argv=None):
+    ap = argparse.ArgumentParser(
+        description='Fetch the villa iCal feed(s) and update data/history.json + data/feed.ics.')
+    ap.add_argument('--dry-run', action='store_true',
+                    help='compute and report everything, write nothing')
+    ap.add_argument('--fixtures', metavar='DIR',
+                    help='read DIR/<channel>.ics instead of the network (offline run)')
+    return ap.parse_args(argv)
+
+
 def main():
-    dry_run  = '--dry-run' in sys.argv
-    fixtures = None
-    if '--fixtures' in sys.argv:
-        fixtures = sys.argv[sys.argv.index('--fixtures') + 1]
+    args = parse_args()
+    dry_run, fixtures = args.dry_run, args.fixtures
 
     feeds = resolve_feeds(fixtures)
     if not feeds:
@@ -651,9 +791,9 @@ def main():
 
     if multi:
         events, collapsed = collapse_cross_feed_duplicates(events)
-        for span, plats, winner in collapsed:
-            print(f'::warning::same nights {span[0]}→{span[1]} came from '
-                  f'{" + ".join(plats)} — kept {winner}, treated the rest as a mirror. '
+        for span, feeds_, winner in collapsed:
+            print(f'::warning::same nights {span[0]}→{span[1]} came from the '
+                  f'{" + ".join(feeds_)} feeds — kept {winner}, treated the rest as a mirror. '
                   f'If these are genuinely two different stays, it is a DOUBLE BOOKING.')
 
     print(f'Parsed {len(events)} real booking events')
@@ -662,15 +802,18 @@ def main():
     today = datetime(now.year, now.month, now.day)
     today_s = today.strftime('%Y-%m-%d')
 
-    adopted = adopt_existing_uidh(events, history, today_s)
+    adopted, refused = adopt_existing_uidh(events, history, today)
     for old, new, s, e_, p in adopted:
         print(f'uidh continuity: {s}→{e_} {p} kept archived key {old} (feed now says {new})')
     if adopted:
         print(f'{len(adopted)} stay(s) kept their archived uidh — /sprava/ links preserved')
+    for old, new, s, e_, p in refused:
+        print(f'uidh continuity: {s}→{e_} {p} matches STALE archived {old} — NOT adopted, '
+              f'new key {new}. Same stay after all? Re-link it in /sprava/ by hand.')
 
     # Sanitized feed snapshot (public pages read it same-origin from GitHub Pages).
     # Written AFTER adoption so feed.ics and history.json agree on every uidh.
-    feed_text = build_feed(events)
+    feed_text = build_feed(events, rfc_dates=multi)
 
     # Anything in this run's feed is alive NOW: stamp lastSeen, keep the original firstSeen.
     # Anything absent keeps its old stamps and ages into `stale` on its own.
