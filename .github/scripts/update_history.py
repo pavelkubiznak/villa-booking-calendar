@@ -393,25 +393,37 @@ def collapse_cross_feed_duplicates(events):
     channel's feed wins; failing that the hub's copy (its UID is what the archive and
     /sprava/ have been keyed on all along); failing that the first one read.
 
-    Same-feed duplicates are left alone: those are a real same-platform clash and
-    report_overlaps() must see them — also inside a collapsed group, where every event
-    of the winning feed survives and only the other feeds' copies go."""
+    ONLY the clean mirror shape is collapsed: every feed in the group contributes
+    exactly ONE event. The moment any feed reports those same nights TWICE, that feed has
+    a genuine same-platform clash, and which of its rows the other feed mirrors is not
+    knowable — so the whole group is kept and report_overlaps() gets to shout. A red
+    alert there is the correct answer; losing a real booking to a heuristic is the one
+    outcome this function must never produce (Codex na #12: dřív rozhodovalo, který feed
+    se čte první, takže kolize v „nevítězném" feedu zmizela).
+
+    Returns (kept, collapsed, kept_clashes)."""
     by_span = {}
     for e in events:
         by_span.setdefault((e['start'], e['end']), []).append(e)
-    kept, collapsed = [], []
+    kept, collapsed, kept_clashes = [], [], []
     for span, group in by_span.items():
-        if len(group) < 2 or len({e['feed_ch'] for e in group}) < 2:
+        per_feed = {}
+        for e in group:
+            per_feed[e['feed_ch']] = per_feed.get(e['feed_ch'], 0) + 1
+        if len(group) < 2 or len(per_feed) < 2:
             kept.extend(group)
+            continue
+        if max(per_feed.values()) > 1:
+            # A feed booked the same nights twice: a real clash inside that channel.
+            # Nothing here is a safely identifiable mirror, so nothing is dropped.
+            kept.extend(group)
+            kept_clashes.append((span, sorted(per_feed)))
             continue
         owner = (next((e for e in group if e['uid_ch'] == e['feed_ch']), None)
                  or next((e for e in group if e['feed_ch'] == 'E-chalupy'), group[0]))
-        # Only the copies from OTHER feeds are mirrors. Everything the winning feed
-        # itself holds on this span stays — two bookings on the same nights in one feed
-        # are a real same-platform clash and report_overlaps() must still see both.
-        kept.extend(e for e in group if e['feed_ch'] == owner['feed_ch'])
+        kept.append(owner)
         collapsed.append((span, [e['feed_ch'] for e in group], owner['platform']))
-    return kept, collapsed
+    return kept, collapsed, kept_clashes
 
 
 def build_feed(events, rfc_dates=False):
@@ -816,11 +828,15 @@ def main():
         sys.exit(1)
 
     if multi:
-        events, collapsed = collapse_cross_feed_duplicates(events)
+        events, collapsed, kept_clashes = collapse_cross_feed_duplicates(events)
         for span, feeds_, winner in collapsed:
             print(f'::warning::same nights {span[0]}→{span[1]} came from the '
                   f'{" + ".join(feeds_)} feeds — kept {winner}, treated the rest as a mirror. '
                   f'If these are genuinely two different stays, it is a DOUBLE BOOKING.')
+        for span, feeds_ in kept_clashes:
+            print(f'::warning::same nights {span[0]}→{span[1]} appear MORE THAN ONCE in one '
+                  f'feed ({" + ".join(feeds_)}) — nothing collapsed, every booking kept. '
+                  f'Expect a double booking below; check the platforms.')
 
     print(f'Parsed {len(events)} real booking events')
 

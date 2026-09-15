@@ -544,11 +544,18 @@ function icsToDate(s) {
   // Hodnota v UTC (…Z) se převádí na den v Europe/Prague: pražská půlnoc je 22:00Z/23:00Z
   // předchozího dne, takže pouhé oříznutí času by posunulo pobyt o den dřív. Producent
   // (update_history.py) už takové hodnoty publikuje jako pražské DATE — tohle je pojistka.
+  // Čte se přes formatToParts(): pořadí polí ani oddělovač ve formátovaném řetězci nejsou
+  // garantované, pevné řezy by na jiném enginu daly NaN a z toho Invalid Date.
   const z = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(String(s).trim());
   if (z) {
     const utc = new Date(Date.UTC(+z[1], +z[2]-1, +z[3], +z[4], +z[5], +z[6]));
-    const p = new Intl.DateTimeFormat('en-CA', { timeZone:'Europe/Prague', year:'numeric', month:'2-digit', day:'2-digit' }).format(utc);
-    return new Date(+p.slice(0,4), +p.slice(5,7)-1, +p.slice(8,10));
+    const part = {};
+    try {
+      new Intl.DateTimeFormat('en-CA', { timeZone:'Europe/Prague', year:'numeric', month:'2-digit', day:'2-digit' })
+        .formatToParts(utc).forEach(p => { part[p.type] = p.value; });
+    } catch (_) { /* engine bez dat o časových pásmech — spadne se na řez níž */ }
+    const y = +part.year, mo = +part.month, dy = +part.day;
+    if (y && mo && dy) return new Date(y, mo-1, dy);
   }
   const d = String(s).replace(/[TZ].*/,'');
   if (d.length < 8) return null;
