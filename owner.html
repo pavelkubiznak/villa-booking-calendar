@@ -912,23 +912,33 @@ function migrateDirectSalePrices(removed, events) {
     delete prices[from];
   };
 
+  // Dědic je JEN živá událost z feedu — ta blokace, kvůli které přímý prodej ze snapshotu
+  // vypadl. Archivní záznam (`stale`) je duch, kalendář ho skrývá a cena na něm by byla
+  // ztracená stejně; jiný přímý prodej (`kind`) náhrada není.
+  const liveHeir = (startTs, endTs, exceptUid) => events.find(e => e.uid !== exceptUid && !e.stale && !e.kind
+                                  && +e.start === startTs && +e.end === endTs && !prices[e.uid]);
+
   // 1) dluhy z minulých běhů — cena mohla dorazit až teď, ze vzdáleného ceníku
   Object.keys(heirs).forEach(from => {
     const h = heirs[from];
     if (!h || !h.to || now - (h.ts || 0) > PRICE_HEIR_TTL) { delete heirs[from]; heirsChanged = true; return; }
-    if (prices[from]) { move(from, h.to); delete heirs[from]; heirsChanged = true; }
+    if (!prices[from]) return;                    // cena pořád nedorazila, čeká se dál
+    // Zapsaný dědic mezitím mohl být zrušen nebo přeuložen pod jiným uidh. Cena na
+    // mrtvém záznamu je ztracená, takže se dědic ověřuje znovu — a když neplatí,
+    // hledá se živá náhrada na tentýž termín.
+    const still = events.find(e => e.uid === h.to && !e.stale && !e.kind && !prices[e.uid]);
+    const heir  = still || liveHeir(h.startTs, h.endTs, from);
+    if (heir) move(from, heir.uid);
+    delete heirs[from]; heirsChanged = true;
   });
 
   // 2) co právě zmizelo ze snapshotu
   (removed || []).forEach(h => {
-    // Dědic je JEN živá událost z feedu — ta blokace, kvůli které přímý prodej ze
-    // snapshotu vypadl. Archivní záznam (`stale`) je duch, kalendář ho skrývá a cena
-    // na něm by byla ztracená stejně; jiný přímý prodej (`kind`) náhrada není.
-    const heir = events.find(e => e.uid !== h.uid && !e.stale && !e.kind
-                                  && +e.start === h.startTs && +e.end === h.endTs && !prices[e.uid]);
+    const heir = liveHeir(h.startTs, h.endTs, h.uid);
     if (!heir) return;
     if (prices[h.uid]) move(h.uid, heir.uid);
-    else { heirs[h.uid] = { to: heir.uid, ts: now }; heirsChanged = true; }   // dokončí se, až cena dorazí
+    // dokončí se, až cena dorazí; termín se pamatuje, ať jde dědic ověřit znovu
+    else { heirs[h.uid] = { to: heir.uid, startTs: h.startTs, endTs: h.endTs, ts: now }; heirsChanged = true; }
   });
 
   if (moved) savePrices(prices);
@@ -1086,7 +1096,17 @@ let kpiBookings = null;
 function renderKPIs(bookings) {
   if (bookings) kpiBookings = bookings;
   const src = kpiBookings || lastBookings;
-  if (!src.length) return;
+  if (!src.length) {
+    // Prázdný živý výsledek musí zahladit i to, co nakreslila cache — jinak nahoře
+    // dál svítí tržby a obsazenost z pobytů, které v kalendáři už nejsou.
+    const row = document.getElementById('kpi-row');
+    if (row) row.innerHTML = '';
+    const wb = document.getElementById('warn-banner');
+    if (wb) wb.className = 'warn-banner';
+    const bd = document.getElementById('breakdown');
+    if (bd) bd.style.display = 'none';
+    return;
+  }
   const k = computeKPIs(src);
   const row = document.getElementById('kpi-row');
   row.innerHTML = `
