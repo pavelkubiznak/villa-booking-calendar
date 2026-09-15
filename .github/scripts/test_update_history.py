@@ -13,9 +13,14 @@ Two things are worth proving here:
   2. MULTI MODE behaves. The filtering, the cross-feed mirror collapse, the uidh
      continuity that keeps /sprava/ linked, and the refusal to rewrite the archive from
      a partially failed fetch.
+
+Fixture dates are RELATIVE to today (see BASE): the script runs against the real clock,
+so fixed dates would drift out of report_overlaps() and the 18-month prune and start
+failing on their own — and a failing test blocks the data update in the workflow.
 """
 
-import json, os, shutil, subprocess, sys, tempfile
+import contextlib, importlib.util, io, json, os, shutil, subprocess, sys, tempfile
+from datetime import datetime, timedelta
 
 HERE     = os.path.dirname(os.path.abspath(__file__))
 REPO     = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -25,8 +30,28 @@ SCRIPT   = os.path.join(HERE, 'update_history.py')
 # nothing to do with the code under test.
 OLD_REF  = '012b5df1e12d6f56b60a098bc1d2904c776a4677'
 
+# All fixture stays sit ~2 months ahead of whenever the suite runs: future for
+# report_overlaps(), inside the 18-month prune, and "seen today" is never stale.
+TODAY = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+BASE  = TODAY + timedelta(days=60)
+
 FAILURES = []
 SKIPPED  = []
+
+
+def d(n):
+    """iCal DATE value n days after BASE."""
+    return (BASE + timedelta(days=n)).strftime('%Y%m%d')
+
+
+def iso(n):
+    """history.json date n days after BASE."""
+    return (BASE + timedelta(days=n)).strftime('%Y-%m-%d')
+
+
+def ago(n):
+    """history.json date n days before today (for firstSeen / lastSeen seeds)."""
+    return (TODAY - timedelta(days=n)).strftime('%Y-%m-%d')
 
 
 def check(name, cond, detail=''):
@@ -71,6 +96,15 @@ def old_script_source():
     return None, r.stderr.strip().splitlines()[-1] if r.stderr.strip() else 'git show failed'
 
 
+def load_module():
+    """Import update_history.py for unit-level checks — without leaving a __pycache__."""
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location('update_history', SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def vevent(uid, summary, start, end):
     return (f'BEGIN:VEVENT\r\nUID:{uid}\r\nSUMMARY:{summary}\r\n'
             f'DTSTART;VALUE=DATE:{start}\r\nDTEND;VALUE=DATE:{end}\r\n'
@@ -83,16 +117,16 @@ def calendar(*events):
 
 def workdir(history=None):
     """A throwaway repo-shaped dir with data/ in it."""
-    d = tempfile.mkdtemp(prefix='vr-test-')
-    os.makedirs(os.path.join(d, 'data'))
-    with open(os.path.join(d, 'data', 'history.json'), 'w') as f:
+    d_ = tempfile.mkdtemp(prefix='vr-test-')
+    os.makedirs(os.path.join(d_, 'data'))
+    with open(os.path.join(d_, 'data', 'history.json'), 'w') as f:
         json.dump(history or [], f)
-    return d
+    return d_
 
 
-def run(cwd, *args, script=SCRIPT):
-    return subprocess.run([sys.executable, script, *args], cwd=cwd,
-                          capture_output=True, text=True)
+def run(cwd, *args, script=SCRIPT, env=None):
+    return subprocess.run([sys.executable, script, *args], cwd=cwd, env=env,
+                          capture_output=True, text=True, timeout=120)
 
 
 def read(cwd, name):
@@ -106,11 +140,11 @@ def read(cwd, name):
 # ── The hub feed as it really looks: own e-chalupy stays, mirrored foreign blocks,
 #    and Airbnb's one-day "not available" noise on every free day. ─────────────────
 HUB = calendar(
-    vevent('abc123@airbnb.com',      'Reserved',                '20261001', '20261005'),
-    vevent('xyz789@booking.com',     'CLOSED - Not available',  '20261010', '20261014'),
-    vevent('res-4471',               'Reserved - Petra',        '20261020', '20261023'),
-    vevent('booking-9931@e-chalupy.cz', 'Rezervace',            '20261101', '20261108'),
-    vevent('noise1@airbnb.com',      'Airbnb (Not available)',  '20261201', '20261202'),
+    vevent('abc123@airbnb.com',      'Reserved',                d(0),  d(4)),
+    vevent('xyz789@booking.com',     'CLOSED - Not available',  d(9),  d(13)),
+    vevent('res-4471',               'Reserved - Petra',        d(19), d(22)),
+    vevent('booking-9931@e-chalupy.cz', 'Rezervace',            d(31), d(38)),
+    vevent('noise1@airbnb.com',      'Airbnb (Not available)',  d(61), d(62)),
 )
 
 
@@ -134,8 +168,9 @@ def test_hub_mode_unchanged():
         f.write(patched)
     check('previous script patched to read the fixture', 'file://' in patched)
 
-    seed = [{'uidh': 'deadbeefdeadbeef', 'start': '2026-05-01', 'end': '2026-05-04',
-             'platform': 'Airbnb', 'firstSeen': '2026-05-01', 'lastSeen': '2026-05-01',
+    # An old, finished stay: stale in both versions, still inside the 18-month prune.
+    seed = [{'uidh': 'deadbeefdeadbeef', 'start': iso(-153), 'end': iso(-150),
+             'platform': 'Airbnb', 'firstSeen': iso(-153), 'lastSeen': iso(-153),
              'stale': True}]
 
     a, b = workdir(seed), workdir(seed)
@@ -153,44 +188,47 @@ def test_hub_mode_unchanged():
     hist = json.loads(read(b, 'history.json') or '[]')
     plats = sorted({e['platform'] for e in hist if not e['stale']})
     check('platforms still derived from UID', plats == ['Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt'], str(plats))
-    check('Airbnb noise still filtered', all(e['start'] != '2026-12-01' for e in hist))
+    check('Airbnb noise still filtered', all(e['start'] != iso(61) for e in hist))
+    # read() opens in text mode, so the file's CRLF arrives as '\n' here.
+    check('hub mode keeps writing bare DATE values (byte-identical to the old script)',
+          f'DTSTART:{d(0)}\n' in (read(b, 'feed.ics') or ''))
 
 
 def multi_fixtures():
     """Four channel feeds. Each carries its own stays plus mirrors of the others."""
-    d = tempfile.mkdtemp(prefix='vr-multi-')
-    w = lambda n, c: open(os.path.join(d, n), 'w', encoding='utf-8').write(c)
+    d_ = tempfile.mkdtemp(prefix='vr-multi-')
+    w = lambda n, c: open(os.path.join(d_, n), 'w', encoding='utf-8').write(c)
     w('Airbnb.ics', calendar(
-        vevent('air-1@airbnb.com',  'Reserved',               '20261001', '20261005'),
-        vevent('xyz789@booking.com','CLOSED - Not available', '20261010', '20261014'),  # mirror
-        vevent('blk@airbnb.com',    'Airbnb (Not available)', '20261201', '20261202'),  # noise
+        vevent('air-1@airbnb.com',  'Reserved',               d(0),  d(4)),
+        vevent('xyz789@booking.com','CLOSED - Not available', d(9),  d(13)),  # mirror
+        vevent('blk@airbnb.com',    'Airbnb (Not available)', d(61), d(62)),  # noise
     ))
     w('Booking.com.ics', calendar(
-        vevent('bk-1@booking.com',  'CLOSED - Not available', '20261010', '20261014'),
-        vevent('air-1@airbnb.com',  'Reserved',               '20261001', '20261005'),  # mirror
+        vevent('bk-1@booking.com',  'CLOSED - Not available', d(9),  d(13)),
+        vevent('air-1@airbnb.com',  'Reserved',               d(0),  d(4)),   # mirror
     ))
     w('Fewo-direkt.ics', calendar(
-        vevent('res-4471',          'Reserved - Petra',       '20261020', '20261023'),
+        vevent('res-4471',          'Reserved - Petra',       d(19), d(22)),
     ))
     w('E-chalupy.ics', calendar(
-        vevent('ech-1@e-chalupy.cz','Rezervace',              '20261101', '20261108'),
-        vevent('res-4471',          'Reserved - Petra',       '20261020', '20261023'),  # mirror
+        vevent('ech-1@e-chalupy.cz','Rezervace',              d(31), d(38)),
+        vevent('res-4471',          'Reserved - Petra',       d(19), d(22)),  # mirror
     ))
-    return d
+    return d_
 
 
 def test_multi_mode():
     print('\nMULTI MODE — čtyři feedy, filtr vlastních rezervací')
-    d = multi_fixtures()
+    d_ = multi_fixtures()
     cwd = workdir()
-    r = run(cwd, '--fixtures', d)
+    r = run(cwd, '--fixtures', d_)
     check('ran', r.returncode == 0, r.stderr.strip()[:300])
     check('multi mode detected', 'Mode: MULTI' in r.stdout)
 
     hist = json.loads(read(cwd, 'history.json') or '[]')
     got = sorted((e['start'], e['platform']) for e in hist)
-    want = sorted([('2026-10-01', 'Airbnb'), ('2026-10-10', 'Booking.com'),
-                   ('2026-10-20', 'Fewo-direkt'), ('2026-11-01', 'E-chalupy')])
+    want = sorted([(iso(0), 'Airbnb'), (iso(9), 'Booking.com'),
+                   (iso(19), 'Fewo-direkt'), (iso(31), 'E-chalupy')])
     check('every stay kept exactly once, under its own channel', got == want, str(got))
     check('no stay lost', len(hist) == 4, f'{len(hist)} entries')
     check('mirrors filtered, not collapsed after the fact',
@@ -198,17 +236,57 @@ def test_multi_mode():
     check('platform comes from the channel, not the UID',
           all(e['platform'] in ('Airbnb', 'Booking.com', 'Fewo-direkt', 'E-chalupy') for e in hist))
     check('no false double booking reported', 'REAL double booking' not in r.stdout, r.stdout[-400:])
+    feed = read(cwd, 'feed.ics') or ''
+    check('multi mode writes all-day values with ;VALUE=DATE (RFC 5545)',   # text-mode read: CRLF → '\n'
+          f'DTSTART;VALUE=DATE:{d(0)}\nDTEND;VALUE=DATE:{d(4)}\n' in feed, feed[:300])
+
+
+def test_partial_multi_mode():
+    print('\nČÁSTEČNÝ MULTI MODE — jen Booking.com + hub: cizí pobyt si nechá platformu z UID')
+    d_ = tempfile.mkdtemp(prefix='vr-part-')
+    w = lambda n, c: open(os.path.join(d_, n), 'w', encoding='utf-8').write(c)
+    w('Booking.com.ics', calendar(
+        vevent('bk-1@booking.com',       'CLOSED - Not available', d(9), d(13)),
+        vevent('air-mirror@airbnb.com',  'Reserved',               d(0), d(4)),   # Airbnb feed NOT configured
+    ))
+    w('E-chalupy.ics', HUB)      # the hub exactly as it is today, noise included
+    # The archive knows the Airbnb stay under the key /sprava/ joins on.
+    seed = [{'uidh': 'aaaaaaaaaaaaaaaa', 'start': iso(0), 'end': iso(4),
+             'platform': 'Airbnb', 'firstSeen': ago(40), 'lastSeen': ago(1),
+             'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    check('multi mode detected', 'Mode: MULTI' in r.stdout)
+
+    hist = json.loads(read(cwd, 'history.json') or '[]')
+    got = sorted((e['start'], e['platform']) for e in hist)
+    want = sorted([(iso(0), 'Airbnb'), (iso(9), 'Booking.com'),
+                   (iso(19), 'Fewo-direkt'), (iso(31), 'E-chalupy')])
+    check('kept foreign stays carry the platform their UID implies (as hub mode would)',
+          got == want, str(got))
+    check('Airbnb auto-block noise dropped although the Airbnb feed is not configured',
+          all(e['start'] != iso(61) for e in hist))
+    air = next((e for e in hist if e['start'] == iso(0)), None)
+    check('archived uidh (the /sprava/ key) adopted, not replaced',
+          air is not None and air['uidh'] == 'aaaaaaaaaaaaaaaa', str(air))
+    check('one live Airbnb stay, not one per feed',
+          sum(1 for e in hist if e['start'] == iso(0)) == 1, str(hist))
+    check('no false double booking', 'REAL double booking' not in r.stdout, r.stdout[-400:])
+    check('the KEPT branch was taken and says so', 'KEPT as Airbnb' in r.stdout)
+    check('the two copies of the Airbnb stay were collapsed as a mirror, loudly',
+          'same nights' in r.stdout and 'Booking.com + E-chalupy' in r.stdout, r.stdout[-600:])
 
 
 def test_real_double_booking_survives():
     print('\nMULTI MODE — skutečná dvojitá rezervace se NESMÍ spolknout')
-    d = tempfile.mkdtemp(prefix='vr-dbl-')
-    w = lambda n, c: open(os.path.join(d, n), 'w', encoding='utf-8').write(c)
+    d_ = tempfile.mkdtemp(prefix='vr-dbl-')
+    w = lambda n, c: open(os.path.join(d_, n), 'w', encoding='utf-8').write(c)
     # Two different channels, genuinely overlapping but NOT the same span.
-    w('Airbnb.ics',      calendar(vevent('a1@airbnb.com',  'Reserved',              '20270703', '20270710')))
-    w('Booking.com.ics', calendar(vevent('b1@booking.com', 'CLOSED - Not available','20270707', '20270712')))
+    w('Airbnb.ics',      calendar(vevent('a1@airbnb.com',  'Reserved',              d(0), d(7))))
+    w('Booking.com.ics', calendar(vevent('b1@booking.com', 'CLOSED - Not available', d(4), d(9))))
     cwd = workdir()
-    r = run(cwd, '--fixtures', d)
+    r = run(cwd, '--fixtures', d_)
     hist = json.loads(read(cwd, 'history.json') or '[]')
     check('both stays kept', len(hist) == 2, str(hist))
     check('flagged as a REAL double booking', 'REAL double booking' in r.stdout, r.stdout[-400:])
@@ -216,53 +294,184 @@ def test_real_double_booking_survives():
 
 def test_uidh_continuity():
     print('\nUID CONTINUITY — /sprava/ nesmí ztratit vazbu')
-    d = tempfile.mkdtemp(prefix='vr-uid-')
-    open(os.path.join(d, 'Airbnb.ics'), 'w', encoding='utf-8').write(
-        calendar(vevent('air-new-uid@airbnb.com', 'Reserved', '20261001', '20261005')))
-    open(os.path.join(d, 'Booking.com.ics'), 'w', encoding='utf-8').write(
-        calendar(vevent('bk-1@booking.com', 'CLOSED - Not available', '20261010', '20261014')))
+    d_ = tempfile.mkdtemp(prefix='vr-uid-')
+    open(os.path.join(d_, 'Airbnb.ics'), 'w', encoding='utf-8').write(
+        calendar(vevent('air-new-uid@airbnb.com', 'Reserved', d(0), d(4))))
+    open(os.path.join(d_, 'Booking.com.ics'), 'w', encoding='utf-8').write(
+        calendar(vevent('bk-1@booking.com', 'CLOSED - Not available', d(9), d(13))))
     # The archive holds the SAME stay under the hub's uidh — the key /sprava/ joins on.
-    seed = [{'uidh': 'aaaabbbbccccdddd', 'start': '2026-10-01', 'end': '2026-10-05',
-             'platform': 'Airbnb', 'firstSeen': '2026-06-01', 'lastSeen': '2026-08-12',
+    # It was live in the previous run (lastSeen yesterday), as it is during the switch.
+    seed = [{'uidh': 'aaaabbbbccccdddd', 'start': iso(0), 'end': iso(4),
+             'platform': 'Airbnb', 'firstSeen': ago(120), 'lastSeen': ago(1),
              'stale': False}]
     cwd = workdir(seed)
-    r = run(cwd, '--fixtures', d)
+    r = run(cwd, '--fixtures', d_)
     hist = json.loads(read(cwd, 'history.json') or '[]')
     keys = {e['uidh'] for e in hist}
     check('archived uidh preserved', 'aaaabbbbccccdddd' in keys, str(keys))
     check('adoption logged', 'uidh continuity' in r.stdout)
     entry = next((e for e in hist if e['uidh'] == 'aaaabbbbccccdddd'), None)
     check('stay is live, not a ghost', entry is not None and entry['stale'] is False, str(entry))
-    check('firstSeen kept from the archive', entry and entry['firstSeen'] == '2026-06-01', str(entry))
+    check('firstSeen kept from the archive', entry and entry['firstSeen'] == ago(120), str(entry))
     check('no orphan duplicate of the same stay',
-          sum(1 for e in hist if e['start'] == '2026-10-01') == 1, str(hist))
+          sum(1 for e in hist if e['start'] == iso(0)) == 1, str(hist))
     feed = read(cwd, 'feed.ics') or ''
     check('feed.ics uses the same adopted uidh', 'aaaabbbbccccdddd' in feed)
 
 
+def test_stale_archive_never_adopted():
+    print('\nUID CONTINUITY — mrtvý (stale) záznam se nepřevezme: nový host nesmí zdědit vazbu starého')
+    d_ = tempfile.mkdtemp(prefix='vr-stale-')
+    # Hub mode on purpose: adoption runs in every mode, so must this rule.
+    open(os.path.join(d_, 'E-chalupy.ics'), 'w', encoding='utf-8').write(
+        calendar(vevent('NEWGUEST-777@airbnb.com', 'Reserved', d(0), d(4))))
+    # A cancelled stay on the very same nights: dropped out of the feed a month ago.
+    seed = [{'uidh': '0ldgue5t0ldgue5t', 'start': iso(0), 'end': iso(4),
+             'platform': 'Airbnb', 'firstSeen': ago(90), 'lastSeen': ago(30),
+             'stale': True}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    hist = json.loads(read(cwd, 'history.json') or '[]')
+    live = [e for e in hist if not e['stale']]
+    check('the new stay got a key of its own',
+          len(live) == 1 and live[0]['uidh'] != '0ldgue5t0ldgue5t', str(hist))
+    check('the cancelled stay stays in the archive, stale, untouched',
+          any(e['uidh'] == '0ldgue5t0ldgue5t' and e['stale'] and e['lastSeen'] == ago(30) for e in hist), str(hist))
+    check('not logged as an adoption', 'kept archived key' not in r.stdout, r.stdout[-400:])
+    check('refusal reported so the owner can re-link by hand', 'STALE archived 0ldgue5t0ldgue5t' in r.stdout,
+          r.stdout[-400:])
+
+    uh = load_module()
+    # Adopt at most once: two new stays for one archived key → the second gets its own.
+    hist_map = {'aaaabbbbccccdddd': {'uidh': 'aaaabbbbccccdddd', 'start': iso(0), 'end': iso(4),
+                                     'platform': 'Airbnb', 'firstSeen': ago(9), 'lastSeen': ago(1)}}
+    ev = [{'uidh': 'new1', 'start': iso(0), 'end': iso(4), 'platform': 'Airbnb'},
+          {'uidh': 'new2', 'start': iso(0), 'end': iso(4), 'platform': 'Airbnb'}]
+    adopted, refused = uh.adopt_existing_uidh(ev, hist_map, TODAY)
+    check('one archived key is adopted at most once per run',
+          [e['uidh'] for e in ev] == ['aaaabbbbccccdddd', 'new2'] and len(adopted) == 1 and not refused,
+          str((ev, adopted, refused)))
+
+
 def test_failed_feed_aborts():
     print('\nBEZPEČNOST — rozbitý feed nesmí přepsat archiv')
-    d = tempfile.mkdtemp(prefix='vr-bad-')
-    open(os.path.join(d, 'Airbnb.ics'), 'w', encoding='utf-8').write(
-        calendar(vevent('a1@airbnb.com', 'Reserved', '20261001', '20261005')))
-    open(os.path.join(d, 'Booking.com.ics'), 'w', encoding='utf-8').write('<html>login page</html>')
-    seed = [{'uidh': 'aaaabbbbccccdddd', 'start': '2026-10-01', 'end': '2026-10-05',
-             'platform': 'Airbnb', 'firstSeen': '2026-06-01', 'lastSeen': '2026-08-12',
+    d_ = tempfile.mkdtemp(prefix='vr-bad-')
+    open(os.path.join(d_, 'Airbnb.ics'), 'w', encoding='utf-8').write(
+        calendar(vevent('a1@airbnb.com', 'Reserved', d(0), d(4))))
+    open(os.path.join(d_, 'Booking.com.ics'), 'w', encoding='utf-8').write('<html>login page</html>')
+    seed = [{'uidh': 'aaaabbbbccccdddd', 'start': iso(0), 'end': iso(4),
+             'platform': 'Airbnb', 'firstSeen': ago(120), 'lastSeen': ago(1),
              'stale': False}]
     cwd = workdir(seed)
     before = read(cwd, 'history.json')
-    r = run(cwd, '--fixtures', d)
+    r = run(cwd, '--fixtures', d_)
     check('exits non-zero', r.returncode != 0, str(r.returncode))
     check('archive left untouched', read(cwd, 'history.json') == before)
     check('says why', 'refusing to rewrite' in r.stderr, r.stderr[-300:])
 
 
+def test_fetch_error_never_leaks_url():
+    print('\nBEZPEČNOST — chyba stahování nesmí do (veřejného) logu vypsat URL feedu')
+    key = 'SECRETKEY6C517e26'
+    cases = (
+        # A secret pasted without the scheme: urllib's ValueError quotes the whole URL.
+        ('no scheme',         f'www.example.invalid/api/calendar/18852/{key}/default.ics'),
+        # A stray space inside: http.client.InvalidURL quotes the path, key included.
+        ('control character', f'https://www.example.invalid/api/calendar/18852/{key} x/default.ics'),
+    )
+    for label, url in cases:
+        env = {k: v for k, v in os.environ.items() if not k.startswith('ICAL_URL_')}
+        env['ICAL_URL_ECHALUPY'] = url           # hub mode, one broken feed
+        cwd = workdir()
+        r = run(cwd, '--dry-run', env=env)
+        out = r.stdout + r.stderr
+        check(f'{label}: exits non-zero', r.returncode != 0, str(r.returncode))
+        check(f'{label}: neither the key nor the host reaches the log',
+              key not in out and 'example.invalid' not in out, out[-400:])
+        check(f'{label}: no traceback', 'Traceback' not in out, out[-400:])
+        check(f'{label}: the failure is still named',
+              '::error::E-chalupy: fetch failed' in r.stderr and 'refusing to rewrite' in r.stderr,
+              r.stderr[-400:])
+
+
+def test_parser_edges():
+    print('\nPARSER — okraje RFC 5545 (DTEND chybí, UTC čas, VALUE=DATE)')
+    uh = load_module()
+
+    def one(body):
+        text = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\n' + body + 'END:VCALENDAR\r\n'
+        log = io.StringIO()
+        with contextlib.redirect_stdout(log):
+            ev = uh.parse_ics(text)
+        return ev, log.getvalue()
+
+    ev, _ = one(f'BEGIN:VEVENT\r\nUID:x1@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                f'DTSTART;VALUE=DATE:{d(0)}\r\nDURATION:P4D\r\nEND:VEVENT\r\n')
+    check('no DTEND + DURATION:P4D → end = start + 4 days',
+          len(ev) == 1 and ev[0]['end'] == iso(4) and ev[0]['dtend'] == d(4), str(ev))
+
+    ev, _ = one(f'BEGIN:VEVENT\r\nUID:x2@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                f'DTSTART;VALUE=DATE:{d(0)}\r\nDURATION:P1W2D\r\nEND:VEVENT\r\n')
+    check('DURATION:P1W2D → 9 days', len(ev) == 1 and ev[0]['end'] == iso(9), str(ev))
+
+    ev, _ = one(f'BEGIN:VEVENT\r\nUID:x3@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                f'DTSTART;VALUE=DATE:{d(0)}\r\nEND:VEVENT\r\n')
+    check('no DTEND, DATE-only start → one day', len(ev) == 1 and ev[0]['end'] == iso(1), str(ev))
+
+    ev, log = one(f'BEGIN:VEVENT\r\nUID:x4@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                  f'DTSTART:{d(0)}T140000\r\nEND:VEVENT\r\n')
+    check('no DTEND, DATE-TIME start → skipped (zero length) and logged without the UID',
+          ev == [] and 'skipped VEVENT' in log and 'x4@airbnb.com' not in log, log)
+
+    ev, _ = one(f'BEGIN:VEVENT\r\nUID:x5@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                f'DTSTART:{d(0)}T140000\r\nDURATION:P3D\r\nEND:VEVENT\r\n')
+    check('DATE-TIME start + DURATION keeps the time of day on the implied DTEND',
+          len(ev) == 1 and ev[0]['dtend'] == d(3) + 'T140000' and ev[0]['end'] == iso(3), str(ev))
+
+    if uh.LOCAL_TZ is None:
+        skip('UTC → Europe/Prague', 'no tz database on this machine')
+    else:
+        check('22:00Z in summer = Prague midnight next day',
+              uh.ics_to_date('20261001T220000Z') == datetime(2026, 10, 2))
+        check('23:00Z in winter = Prague midnight next day',
+              uh.ics_to_date('20261201T230000Z') == datetime(2026, 12, 2))
+        check('20:00Z in summer stays the same day',
+              uh.ics_to_date('20261001T200000Z') == datetime(2026, 10, 1))
+    check('floating DATE-TIME (the hub) still cut to its own date',
+          uh.ics_to_date('20260911T140000') == datetime(2026, 9, 11))
+    check('DATE still parsed as written', uh.ics_to_date('20261001') == datetime(2026, 10, 1))
+
+    ev, _ = one(vevent('x6@airbnb.com', 'Reserved', d(0), d(4)))
+    for e in ev:
+        e['platform'] = 'Airbnb'
+    hub_feed   = uh.build_feed(ev)
+    multi_feed = uh.build_feed(ev, rfc_dates=True)
+    check('build_feed default (hub mode) writes DATE values bare, as always',
+          f'DTSTART:{d(0)}\r\nDTEND:{d(4)}\r\n' in hub_feed, hub_feed)
+    check('build_feed with rfc_dates writes ;VALUE=DATE for all-day values',
+          f'DTSTART;VALUE=DATE:{d(0)}\r\nDTEND;VALUE=DATE:{d(4)}\r\n' in multi_feed, multi_feed)
+    ev[0]['dtstart'], ev[0]['dtend'] = d(0) + 'T140000', d(4) + 'T100000'
+    check('build_feed with rfc_dates leaves DATE-TIME values alone',
+          f'DTSTART:{d(0)}T140000\r\nDTEND:{d(4)}T100000\r\n' in uh.build_feed(ev, rfc_dates=True))
+
+
+def test_cli():
+    print('\nCLI — argumenty')
+    cwd = workdir()
+    r = run(cwd, '--fixtures')
+    check('--fixtures without a directory: clean usage error, no traceback',
+          r.returncode == 2 and 'Traceback' not in r.stderr and 'usage' in r.stderr, r.stderr[-300:])
+    r = run(cwd, '--help')
+    check('--help works', r.returncode == 0 and '--dry-run' in r.stdout and '--fixtures' in r.stdout)
+
+
 def test_dry_run_writes_nothing():
     print('\n--dry-run')
-    d = multi_fixtures()
+    d_ = multi_fixtures()
     cwd = workdir()
     before = read(cwd, 'history.json')
-    r = run(cwd, '--fixtures', d, '--dry-run')
+    r = run(cwd, '--fixtures', d_, '--dry-run')
     check('ran', r.returncode == 0, r.stderr.strip()[:200])
     check('nothing written', read(cwd, 'history.json') == before)
     check('no feed.ics created', read(cwd, 'feed.ics') is None)
@@ -272,9 +481,14 @@ def test_dry_run_writes_nothing():
 if __name__ == '__main__':
     test_hub_mode_unchanged()
     test_multi_mode()
+    test_partial_multi_mode()
     test_real_double_booking_survives()
     test_uidh_continuity()
+    test_stale_archive_never_adopted()
     test_failed_feed_aborts()
+    test_fetch_error_never_leaks_url()
+    test_parser_edges()
+    test_cli()
     test_dry_run_writes_nothing()
     if SKIPPED:
         print('\nPŘESKOČENO (neselhalo, jen se v tomhle prostředí nedalo spustit): '

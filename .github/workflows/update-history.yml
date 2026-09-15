@@ -8,9 +8,17 @@ on:
 permissions:
   contents: write
 
+# Cron a ruční spuštění se nesmí potkat: oba by spočítaly data/ nad stejným checkoutem
+# a druhý push by skončil jako non-fast-forward. Nový běh počká, rozběhnutý se neruší.
+concurrency:
+  group: update-history
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
+    # Výchozích 360 minut by zaseknutý git fetch/push držel runner půl dne.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,6 +27,11 @@ jobs:
           # S mělkým klonem (depth=1) ten commit v runneru není — test se pak přeskočí
           # a hub mode nikdo neohlídá. Repo je malé, plný klon nic nestojí.
           fetch-depth: 0
+
+      # Přišpendlená verze: systémový python3 se mění s obrazem runneru.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       - name: Run tests
         run: python3 .github/scripts/test_update_history.py
@@ -42,5 +55,8 @@ jobs:
           git add data/history.json data/feed.ics
           git diff --staged --quiet && echo "No changes" || (
             git commit -m "chore: update booking history [skip ci]"
+            # Kdyby na větvi mezitím přibyl commit (sloučený PR, ruční smazání ducha),
+            # push by byl odmítnut a aktualizace by propadla do dalšího běhu.
+            git pull --rebase origin ${{ github.ref_name }}
             git push
           )
