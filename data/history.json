@@ -504,6 +504,17 @@
     "stale": true
   },
   {
+    "uidh": "8c50357027710972",
+    "start": "2027-08-21",
+    "end": "2027-08-28",
+    "platform": "Přímá",
+    "firstSeen": "2026-09-15",
+    "lastSeen": "2026-09-15",
+    "kind": "hold",
+    "holdUntil": "2026-09-25",
+    "stale": false
+  },
+  {
     "uidh": "7d554b0cd7bfedf3",
     "start": "2027-08-30",
     "end": "2027-09-05",
