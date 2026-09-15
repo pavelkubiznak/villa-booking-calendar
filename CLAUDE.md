@@ -144,6 +144,16 @@ Co je na tom v tomhle repu podstatné:
   termín jako volný — přesně ta chyba, kvůli které modul vznikl.
 - **Předrezervace není úklid.** `getDayHalves()` vrací nově `isCleaning`; u holdu se
   nekreslí „↑10", nepočítá se do přehledu úklidů ani do majitelských KPI.
+- **Předrezervace se nepočítá ani do obsazenosti a tržeb** (doplněno 2026-09-15, viz níž):
+  chip v záhlaví měsíce na obou stránkách i `buildMonthly()` drží stejnou hranici jako
+  `computeKPIs()`. Cenu jí tabulka zadat dovolí — majitel ji zná dřív, než je uhrazená —
+  ale do čísel vstoupí až po potvrzení.
+- **Cache v prohlížeči se srovnává proti snapshotu.** `mergeHistory()` umí jen přidat
+  a přepsat; `dropVanishedDirectSales()` (v obou stránkách, **identická**) po úspěšném
+  načtení `history.json` smaže z `localStorage` záznamy přímého prodeje, které v něm
+  nejsou. Bez toho propadlý hold přežije v prohlížeči až do prune a — protože nikdy
+  nezestárne na ducha — dělá i falešnou dvojitou rezervaci proti blokaci z feedu.
+  Na feedové a ruční záznamy se nesahá a při prázdném/neúspěšném snapshotu se nemaže nic.
 - **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
   vlastní rezervace ven je samostatný krok (viz „Cíl dál" níž).
 - **Hold se shodným termínem jako živá událost z feedu se nepublikuje** — to je vlastní
@@ -305,6 +315,10 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
   rezervací, kontinuita `uidh`, offline testy). Čeká na 3 secrety, zatím běží hub mode.
 - 2026-09-10: **ikona na plochu iPhonu** pro obě stránky (viz výš) — apple-touch-icon,
   manifest, standalone režim a respektování safe-area.
+- 2026-09-15: **nálezy Codexu na #9** — cache v prohlížeči neztrácela zrušený hold
+  (`dropVanishedDirectSales`), `Přímá` chyběla v rozpadu platforem i v `LIGHT` v `owner.html`,
+  oceněná předrezervace lezla do měsíčních tržeb a do obsazenosti v záhlaví měsíce,
+  `valid_holds()` spadla na řádku, který není objekt.
 - 2026-09-09: **předrezervace a přímý prodej** (viz výš) — pátá platforma `Přímá`,
   `kind` v `history.json`, čtení `vr_public_holds()` ze Supabase.
 - 2026-09-04: ručně smazán osiřelý duch `3d35fe03b6a04aef` (Airbnb, 17.–19. 9. 2026).

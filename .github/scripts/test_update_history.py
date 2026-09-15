@@ -534,6 +534,9 @@ def test_direct_sales():
          'kind': 'hold', 'holdUntil': '2026-10-01'},
         {'uidh': 'nonsense', 'start': '2027-09-04', 'end': '2027-09-11',
          'kind': 'hold', 'holdUntil': None},
+        # rozbité řádky: ani jeden nesmí shodit běh a vzít s sebou i ten platný hold
+        None,
+        'tohle objekt není',
     ], open(os.path.join(d, 'holds.json'), 'w'))
 
     cwd = workdir()
@@ -552,6 +555,7 @@ def test_direct_sales():
     check('termín krytý blokem z platformy se nepublikuje', '1111111111111111' not in by)
     check('a je to vidět v logu', 'already blocked on a platform' in r.stdout)
     check('rozbitý uidh neprojde', 'malformed uidh' in r.stdout)
+    check('řádek, co není objekt, jen vypadne', 'not an object' in r.stdout)
 
     check('do feed.ics se přímý prodej nepíše', '2222222222222222' not in (read(cwd, 'feed.ics') or ''))
     check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout, r.stdout[-400:])

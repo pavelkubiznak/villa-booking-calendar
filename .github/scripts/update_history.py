@@ -590,6 +590,11 @@ def valid_holds(rows):
     """Drop anything malformed rather than letting it into the public archive."""
     out = []
     for h in rows or []:
+        # Řádek, který není objekt (null v poli, holý řetězec), by na .get() shodil
+        # celý běh — a ten by skončil dřív, než cokoli zapíše. Nepoužitelný přímý
+        # prodej se zahazuje po řádcích, archiv kvůli němu nepadá.
+        if not isinstance(h, dict):
+            print(f'::warning::hold that is not an object skipped: {h!r}'); continue
         uidh, start, end = h.get('uidh'), h.get('start'), h.get('end')
         kind = h.get('kind')
         if not (isinstance(uidh, str) and re.fullmatch(r'[0-9a-f]{16}', uidh)):

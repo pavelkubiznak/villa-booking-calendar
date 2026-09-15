@@ -341,7 +341,7 @@ const PBKDF2_ITERS = 310000;                   // OWASP-recommended floor (runs 
 // z žádného feedu — do history.json ji doplňuje Action ze Supabase, viz
 // update_history.py → DIRECT SALES. Fialová schválně nesousedí s barvami platforem.
 const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12', 'Přímá':'#8E44AD' };
-const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
+const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7', 'Přímá':'#F4ECF7' };
 const RESERVATION_LABEL = 'Rezervace';   // guest names are gone — look the guest up in the platform extranet
 function platformOf(s) { return COL[s] ? s : 'E-chalupy'; }
 function is16hex(k) { return /^[0-9a-f]{16}$/.test(String(k)); }
@@ -703,6 +703,29 @@ function jumpToMonth(id) {
   el.classList.add('flash');
 }
 
+// Snapshot history.json je pro přímý prodej JEDINÝ zdroj pravdy. Hold, který propadl,
+// byl zrušen, nebo se kryje s blokací, co se mezitím vrátila z feedu, z něj zmizí —
+// jenže mergeHistory() umí jen přidat a přepsat, nikdy ubrat. Bez tohohle by takový
+// záznam zůstal v localStorage až do prune (18 měsíců po odjezdu), a protože přímý
+// prodej schválně nikdy nezestárne na ducha (isGhost ho nevyhodí), kreslil by se dál
+// jako platná předrezervace — a proti živé události z feedu i jako falešná dvojitá
+// rezervace. Přesně ten poplach, kvůli kterému isGhost vznikl.
+// Sahá se JEN na záznamy přímého prodeje: feedové drží archiv schválně (hub je
+// ztrátový) a ruční pobyt patří majiteli stránky, ne snapshotu.
+function dropVanishedDirectSales(liveUids) {
+  const history = loadHistory();
+  let removed = 0;
+  Object.keys(history).forEach(uid => {
+    const h = history[uid];
+    if (!h || !h.kind) return;                        // z feedu nebo ruční
+    if (String(uid).startsWith('manual-')) return;    // ruční pobyt snapshot nezná
+    if (liveUids.has(uid)) return;
+    delete history[uid]; removed++;
+  });
+  if (removed) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {} }
+  return removed;
+}
+
 async function fetchAndMergeRemoteHistory() {
   try {
     const res = await fetch(REMOTE_HISTORY_URL + '?_=' + Date.now());
@@ -724,6 +747,9 @@ async function fetchAndMergeRemoteHistory() {
       }))
       .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
     if (events.length === 0) return 0;
+    // Až TADY, po úspěšném a neprázdném snapshotu: výpadek sítě nesmí uvolnit
+    // držený termín (stejná úvaha jako `holds is None` v update_history.py).
+    dropVanishedDirectSales(new Set(events.map(e => e.uid)));
     mergeHistory(events);
     return events.length;
   } catch (_) { return 0; }
@@ -855,6 +881,10 @@ function buildMonthly(bookings) {
     return monthly[key];
   };
   bookings.forEach(b => {
+    // Stejná hranice jako v computeKPIs(): předrezervace není tržba. Cenu jí
+    // tabulka zadat dovolí (majitel ji zná dřív, než je uhrazená), ale do čísel
+    // se smí až po potvrzení — jinak si chip v záhlaví a KPI odporují.
+    if (isHold(b)) return;
     const n = nightsBetween(b.start, b.end);
     if (n <= 0) return;
     const total = priceCZK(b.uid);
@@ -1014,7 +1044,9 @@ function renderKPIs(bookings) {
 }
 
 function renderBreakdown(k) {
-  const order = ['Airbnb','Booking.com','E-chalupy','Fewo-direkt'];
+  // 'Přímá' sem patří stejně jako feedové kanály — computeKPIs() ji do součtu
+  // počítá, takže bez ní by přímé tržby byly v hlavičce a v rozpadu ne.
+  const order = ['Airbnb','Booking.com','E-chalupy','Fewo-direkt','Přímá'];
   const rows = order.filter(p => k.byPlat[p]);
   const max = Math.max(1, ...rows.map(p => k.byPlat[p].revenue));
   const wrap = document.getElementById('bd-rows');
@@ -1077,10 +1109,12 @@ function renderCalendar(bookings) {
     card.className = 'month-card'; card.id = cardId;
     const badge = isCurrent ? `<span class="current-badge">aktuální</span>` : '';
     // Obsazenost mesice po nocich: noc zacinajici dnem d je obsazena, kdyz start <= d < end
+    // Předrezervace se do obsazenosti nepočítá — stejně jako v majitelských KPI.
+    // Termín drží a v mřížce je čárkovaně vidět, ale obsazený bude až po potvrzení.
     let occNights = 0;
     for (let d = 1; d <= dim; d++) {
       const nd = new Date(y, m, d);
-      if (bookings.some(b => b.start <= nd && nd < b.end)) occNights++;
+      if (bookings.some(b => !isHold(b) && b.start <= nd && nd < b.end)) occNights++;
     }
     const occHtml = `<span class="mh-occ">${occNights}/${dim} · ${Math.round(occNights / dim * 100)} %</span>`;
     card.innerHTML = `
