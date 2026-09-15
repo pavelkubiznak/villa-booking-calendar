@@ -292,6 +292,29 @@ def test_real_double_booking_survives():
     check('flagged as a REAL double booking', 'REAL double booking' in r.stdout, r.stdout[-400:])
 
 
+def test_same_feed_clash_survives_collapse():
+    print('\nMULTI MODE — dva pobyty na stejné noci v JEDNOM feedu přežijí sloučení zrcadla (Codex na #11)')
+    d_ = tempfile.mkdtemp(prefix='vr-clash-')
+    w = lambda n, c: open(os.path.join(d_, n), 'w', encoding='utf-8').write(c)
+    # Airbnb holds TWO bookings on the same span (a real clash); Booking mirrors the span
+    # as its own closed block. Before the fix the whole group collapsed to one event.
+    w('Airbnb.ics', calendar(
+        vevent('a1@airbnb.com', 'Reserved', d(0), d(4)),
+        vevent('a2@airbnb.com', 'Reserved', d(0), d(4)),
+    ))
+    w('Booking.com.ics', calendar(vevent('b-mirror@booking.com', 'CLOSED - Not available', d(0), d(4))))
+    cwd = workdir()
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    hist = json.loads(read(cwd, 'history.json') or '[]')
+    air = [e for e in hist if e['platform'] == 'Airbnb']
+    check('both Airbnb bookings kept', len(air) == 2, str(hist))
+    check('the Booking mirror collapsed', not any(e['platform'] == 'Booking.com' for e in hist), str(hist))
+    check('collapse logged', 'same nights' in r.stdout, r.stdout[-400:])
+    check('the same-feed clash is reported as a REAL double booking',
+          'REAL double booking' in r.stdout, r.stdout[-600:])
+
+
 def test_uidh_continuity():
     print('\nUID CONTINUITY — /sprava/ nesmí ztratit vazbu')
     d_ = tempfile.mkdtemp(prefix='vr-uid-')
@@ -455,6 +478,32 @@ def test_parser_edges():
     check('build_feed with rfc_dates leaves DATE-TIME values alone',
           f'DTSTART:{d(0)}T140000\r\nDTEND:{d(4)}T100000\r\n' in uh.build_feed(ev, rfc_dates=True))
 
+    # Codex na #11: DURATION se počítá celé, i s časovou částí
+    ev, _ = one(f'BEGIN:VEVENT\r\nUID:x7@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                f'DTSTART:{d(0)}T100000\r\nDURATION:P1DT12H\r\nEND:VEVENT\r\n')
+    check('DATE-TIME start + DURATION:P1DT12H → 36 h later, not one day',
+          len(ev) == 1 and ev[0]['dtend'] == d(1) + 'T220000', str(ev))
+    ev, log = one(f'BEGIN:VEVENT\r\nUID:x8@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                  f'DTSTART;VALUE=DATE:{d(0)}\r\nDURATION:P1DT12H\r\nEND:VEVENT\r\n')
+    check('DATE start + DURATION with a time part is invalid (RFC 5545 §3.8.2.5) → skipped, logged',
+          ev == [] and 'skipped VEVENT' in log, log)
+
+    # Codex na #11: hodnota v UTC se publikuje jako pražské DATE, ať feed.ics a history.json
+    # jmenují stejný den (klient by jinak ořízl čas a vrátil pobyt o den zpět)
+    if uh.LOCAL_TZ is None:
+        skip('UTC value published as the Prague date', 'no tz database on this machine')
+    else:
+        ev, _ = one('BEGIN:VEVENT\r\nUID:x9@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                    'DTSTART:20261001T220000Z\r\nDTEND:20261004T220000Z\r\nEND:VEVENT\r\n')
+        check('history date and published DTSTART agree on the Prague day',
+              len(ev) == 1 and ev[0]['start'] == '2026-10-02' and ev[0]['dtstart'] == '20261002'
+              and ev[0]['end'] == '2026-10-05' and ev[0]['dtend'] == '20261005', str(ev))
+        ev[0]['platform'] = 'Airbnb'
+        check('build_feed (multi) writes the converted day as ;VALUE=DATE',
+              'DTSTART;VALUE=DATE:20261002\r\nDTEND;VALUE=DATE:20261005\r\n' in uh.build_feed(ev, rfc_dates=True))
+        check('floating DATE-TIME is still published as written',
+              uh.published_value('20260911T140000', datetime(2026, 9, 11)) == '20260911T140000')
+
 
 def test_cli():
     print('\nCLI — argumenty')
@@ -483,6 +532,7 @@ if __name__ == '__main__':
     test_multi_mode()
     test_partial_multi_mode()
     test_real_double_booking_survives()
+    test_same_feed_clash_survives_collapse()
     test_uidh_continuity()
     test_stale_archive_never_adopted()
     test_failed_feed_aborts()

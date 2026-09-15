@@ -521,7 +521,20 @@ function parseICS(text) {
   });
   return events.sort((a, b) => a.start - b.start);
 }
-function icsToDate(s) { const d = s.replace(/[TZ].*/, ''); if (d.length < 8) return null; return new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8)); }
+function icsToDate(s) {
+  // Hodnota v UTC (…Z) se převádí na den v Europe/Prague: pražská půlnoc je 22:00Z/23:00Z
+  // předchozího dne, takže pouhé oříznutí času by posunulo pobyt o den dřív. Producent
+  // (update_history.py) už takové hodnoty publikuje jako pražské DATE — tohle je pojistka.
+  const z = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(String(s).trim());
+  if (z) {
+    const utc = new Date(Date.UTC(+z[1], +z[2]-1, +z[3], +z[4], +z[5], +z[6]));
+    const p = new Intl.DateTimeFormat('en-CA', { timeZone:'Europe/Prague', year:'numeric', month:'2-digit', day:'2-digit' }).format(utc);
+    return new Date(+p.slice(0,4), +p.slice(5,7)-1, +p.slice(8,10));
+  }
+  const d = String(s).replace(/[TZ].*/,'');
+  if (d.length < 8) return null;
+  return new Date(+d.slice(0,4), +d.slice(4,6)-1, +d.slice(6,8));
+}
 
 // Lokální datum YYYY-MM-DD. toISOString() dává UTC — v Evropě/Praze by půlnoc
 // spadla do předchozího dne a export by měl všechna data o den zpátky.
