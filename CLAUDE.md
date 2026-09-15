@@ -153,7 +153,9 @@ Co je na tom v tomhle repu podstatné:
   načtení `history.json` smaže z `localStorage` záznamy přímého prodeje, které v něm
   nejsou. Bez toho propadlý hold přežije v prohlížeči až do prune a — protože nikdy
   nezestárne na ducha — dělá i falešnou dvojitou rezervaci proti blokaci z feedu.
-  Na feedové a ruční záznamy se nesahá a při prázdném/neúspěšném snapshotu se nemaže nic.
+  Na feedové a ruční záznamy se nesahá. **Prázdné pole je platná odpověď** (archiv
+  opravdu nic nedrží) a cache se podle něj srovná taky; vynechá se jen to podezřelé —
+  rozbitý fetch, nevalidní JSON, nebo pole, ze kterého neprošel ani jeden řádek.
 - **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
   vlastní rezervace ven je samostatný krok (viz „Cíl dál" níž).
 - **Hold se shodným termínem jako živá událost z feedu se nepublikuje** — to je vlastní

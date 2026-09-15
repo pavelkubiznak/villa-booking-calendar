@@ -1097,7 +1097,7 @@ async function fetchAndMergeRemoteHistory() {
     const res = await fetch(REMOTE_HISTORY_URL + '?_=' + Date.now());
     if (!res.ok) return 0;
     const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return 0;
+    if (!Array.isArray(data)) return 0;
     // Sanitized schema: { uidh, start, end, platform } — no guest field.
     // (Tolerate a legacy raw uid by hashing it, so a stale file still merges cleanly.)
     const events = data.map(e => ({
@@ -1113,10 +1113,15 @@ async function fetchAndMergeRemoteHistory() {
     }))
     .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
 
+    // Srovnat cache smí JEN použitelný snapshot — výpadek sítě ani rozbitý soubor
+    // nesmí uvolnit držený termín (stejná úvaha jako `holds is None` ve skriptu).
+    // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se
+    // zrušený hold musí z cache ztratit. Podezřelé je až pole, ze kterého neprošel
+    // ani jeden řádek — to je změna schématu nebo poškozený soubor, ne prázdno.
+    if (data.length === 0 || events.length > 0) {
+      dropVanishedDirectSales(new Set(events.map(e => e.uid)));
+    }
     if (events.length === 0) return 0;
-    // Až TADY, po úspěšném a neprázdném snapshotu: výpadek sítě nesmí uvolnit
-    // držený termín (stejná úvaha jako `holds is None` v update_history.py).
-    dropVanishedDirectSales(new Set(events.map(e => e.uid)));
     mergeHistory(events);
     return events.length;
   } catch (_) { return 0; }
