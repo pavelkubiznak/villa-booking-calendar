@@ -194,7 +194,11 @@ FEEDS = (
     {'channel': 'Airbnb',      'env': 'ICAL_URL_AIRBNB'},
     {'channel': 'Booking.com', 'env': 'ICAL_URL_BOOKING'},
     {'channel': 'Fewo-direkt', 'env': 'ICAL_URL_FEWO'},
-    {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY'},
+    # E-chalupy is REQUIRED, not merely one of four. It is the hub: it is the only feed
+    # that carries every channel's stays, so a run without it sees a partial world and
+    # rewrites the archive from it — every stay the hub owns stops being refreshed and
+    # ages into `stale` within STALE_AFTER_DAYS. Absent ⇒ abort, see main().
+    {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY', 'required': True},
 )
 
 # Airbnb writes this SUMMARY for every blocked (not booked) day and the hub mirrors it
@@ -696,6 +700,16 @@ def report_overlaps(entries, today_s):
         print('No overlapping future stays.')
 
 
+def missing_required_feeds(fixtures=None):
+    """The FEEDS entries marked required whose secret is unset — the run must abort
+    rather than proceed on a partial feed set. Always empty with --fixtures: that switch
+    is an offline harness whose whole point is exercising arbitrary channel subsets."""
+    if fixtures:
+        return []
+    return [f for f in FEEDS
+            if f.get('required') and not os.environ.get(f['env'], '').strip()]
+
+
 def resolve_feeds(fixtures=None):
     """Which feeds we read this run. With --fixtures, read <dir>/<channel>.ics instead
     of the network so the whole pipeline can be exercised offline."""
@@ -806,6 +820,15 @@ def parse_args(argv=None):
 def main():
     args = parse_args()
     dry_run, fixtures = args.dry_run, args.fixtures
+
+    # Order matters: a missing REQUIRED feed is its own failure even when other feeds
+    # are configured — that is exactly the case the emptiness check below would miss.
+    missing = missing_required_feeds(fixtures)
+    if missing:
+        named = ', '.join(f"{f['channel']} (set {f['env']})" for f in missing)
+        print(f'ERROR: required feed not configured: {named} — refusing to rewrite '
+              f'the archive from a partial feed set', file=sys.stderr)
+        sys.exit(1)
 
     feeds = resolve_feeds(fixtures)
     if not feeds:

@@ -223,10 +223,18 @@ a pak pustit workflow ručně s `--dry-run`, než se nechá zapisovat. Filtrovac
 ostré feedy jednotlivých kanálů zatím nikdo neviděl, takže první běh je potřeba přečíst
 v logu a pravidla případně doladit. Proto ten hlasitý log a proto `--dry-run`.
 
-🔴 **`ICAL_URL_ECHALUPY` je od 2026-09-16 POVINNÝ.** Zadrátovaná e-chalupy URL i s klíčem
-sloužila jako fallback natvrdo v kódu; ta je pryč (`LEGACY_HUB_URL` smazána). Bez toho
-secretu skript skončí `ERROR: no feed configured` a archiv **nepřepíše** — data zamrznou,
-ale nerozbijí se.
+🔴 **`ICAL_URL_ECHALUPY` je od 2026-09-16 POVINNÝ — vynucený v kódu.** Zadrátovaná
+e-chalupy URL i s klíčem sloužila jako fallback natvrdo v kódu; ta je pryč
+(`LEGACY_HUB_URL` smazána). Bez toho secretu skript skončí `ERROR: required feed not
+configured: E-chalupy` a archiv **nepřepíše** — data zamrznou, ale nerozbijí se.
+
+**Proč `required`, a ne jen „jeden ze čtyř".** E-chalupy jsou hub: jediný feed, ve kterém
+jsou pobyty ze všech kanálů. Kdyby chyběl jen on a jiný secret byl nastavený, `resolve_feeds()`
+vrátí neprázdný seznam, kontrola na prázdno v `main()` neuhlídá nic a skript přepíše archiv
+podle **části světa** — všechno, co drží hub, přestane být obnovované a do `STALE_AFTER_DAYS`
+zestárne na `stale`, tedy na bledé duchy v kalendáři. Proto `{'required': True}` a funkce
+`missing_required_feeds()`, která se ptá **před** sáhnutím na jakýkoli feed. `--fixtures` je
+z pravidla vyjmutý schválně — offline harness má umět pouštět libovolné podmnožiny kanálů.
 
 ⚠️ **Smazání z kódu ten klíč neodvolalo.** Repo je veřejné a URL v něm byla od prvního
 commitu, takže je pořád v git historii a v každém forku či mirroru. Jediná skutečná
@@ -323,6 +331,10 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
   jména konstanty). `ICAL_URL_ECHALUPY` je tím pádem povinný secret; majitel potvrdil,
   že je nastavený. Klíč tím ale není odvolaný, jen odstraněný z HEAD — patří
   přegenerovat, viz výš.
+- 2026-09-16: **e-chalupy feed je `required`** — oprava díry, kterou smazání fallbacku
+  otevřelo (nález Codexu na #7, ověřený reprodukcí). Chybějící `ICAL_URL_ECHALUPY` +
+  jakýkoli jiný nastavený secret = tichý přepis archivu z části světa a pobyty hubu
+  zestárnou na duchy. Teď se to zarazí předem, viz výš.
 
 ## Kontext
 
