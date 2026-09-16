@@ -767,10 +767,12 @@ function renderCalendar(bookings) {
     card.className = 'month-card';
     card.id = cardId;
     // Obsazenost mesice po nocich: noc zacinajici dnem d je obsazena, kdyz start <= d < end
+    // Předrezervace se do obsazenosti nepočítá — stejně jako v majitelských KPI.
+    // Termín drží a v mřížce je čárkovaně vidět, ale obsazený bude až po potvrzení.
     let occNights = 0;
     for (let d = 1; d <= dim; d++) {
       const nd = new Date(y, m, d);
-      if (bookings.some(b => b.start <= nd && nd < b.end)) occNights++;
+      if (bookings.some(b => !isHold(b) && b.start <= nd && nd < b.end)) occNights++;
     }
     const occHtml = `<span class="mh-occ">${occNights}/${dim} · ${Math.round(occNights / dim * 100)} %</span>`;
     const headerContent = isCurrent
@@ -1074,12 +1076,37 @@ function toggleSection(id) {
 }
 
 // ── Remote GitHub history ─────────────────────────────────────────────────────
+// Snapshot history.json je pro přímý prodej JEDINÝ zdroj pravdy. Hold, který propadl,
+// byl zrušen, nebo se kryje s blokací, co se mezitím vrátila z feedu, z něj zmizí —
+// jenže mergeHistory() umí jen přidat a přepsat, nikdy ubrat. Bez tohohle by takový
+// záznam zůstal v localStorage až do prune (18 měsíců po odjezdu), a protože přímý
+// prodej schválně nikdy nezestárne na ducha (isGhost ho nevyhodí), kreslil by se dál
+// jako platná předrezervace — a proti živé události z feedu i jako falešná dvojitá
+// rezervace. Přesně ten poplach, kvůli kterému isGhost vznikl.
+// Sahá se JEN na záznamy přímého prodeje: feedové drží archiv schválně (hub je
+// ztrátový) a ruční pobyt patří majiteli stránky, ne snapshotu.
+// Vrací smazané záznamy, ne jen počet: owner.html podle nich stěhuje ručně zadanou
+// cenu na náhradu, než ji pruneOrphanPrices() zahodí jako osiřelou.
+function dropVanishedDirectSales(liveUids) {
+  const history = loadHistory();
+  const removed = [];
+  Object.keys(history).forEach(uid => {
+    const h = history[uid];
+    if (!h || !h.kind) return;                        // z feedu nebo ruční
+    if (String(uid).startsWith('manual-')) return;    // ruční pobyt snapshot nezná
+    if (liveUids.has(uid)) return;
+    removed.push(h); delete history[uid];
+  });
+  if (removed.length) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {} }
+  return removed;
+}
+
 async function fetchAndMergeRemoteHistory() {
   try {
     const res = await fetch(REMOTE_HISTORY_URL + '?_=' + Date.now());
     if (!res.ok) return 0;
     const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return 0;
+    if (!Array.isArray(data)) return 0;
     // Sanitized schema: { uidh, start, end, platform } — no guest field.
     // (Tolerate a legacy raw uid by hashing it, so a stale file still merges cleanly.)
     const events = data.map(e => ({
@@ -1095,6 +1122,14 @@ async function fetchAndMergeRemoteHistory() {
     }))
     .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
 
+    // Srovnat cache smí JEN použitelný snapshot — výpadek sítě ani rozbitý soubor
+    // nesmí uvolnit držený termín (stejná úvaha jako `holds is None` ve skriptu).
+    // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se
+    // zrušený hold musí z cache ztratit. Podezřelé je až pole, ze kterého neprošel
+    // ani jeden řádek — to je změna schématu nebo poškozený soubor, ne prázdno.
+    if (data.length === 0 || events.length > 0) {
+      dropVanishedDirectSales(new Set(events.map(e => e.uid)));
+    }
     if (events.length === 0) return 0;
     mergeHistory(events);
     return events.length;
