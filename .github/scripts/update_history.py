@@ -175,11 +175,6 @@ HOLD_KINDS    = ('hold', 'direct')
 # failed runs in a row) never flips a live booking to "stale" by accident.
 STALE_AFTER_DAYS = 2
 
-# Legacy hub URL. It lived in this (public) repo before the feeds moved to secrets, so
-# it is already burned — kept ONLY as a fallback so the Action keeps running until
-# ICAL_URL_ECHALUPY is set. Set that secret and this constant stops being used.
-LEGACY_HUB_URL = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'
-
 # Direct sales come from the /sprava/ database, not from a feed. The anon key below is
 # the PUBLIC Supabase anon key (it is already published on villarudolf.com and in the
 # n8n workflow exports) and `vr_public_holds()` returns anonymized dates only — no name,
@@ -192,11 +187,14 @@ HOLDS_ANON_DEFAULT = (
     '.goat1c7Y1YnpTq7_XyMD3LROElkVI6E27f0B3EG8btA')
 
 # Feed roster. `env` holds the URL; the channel name IS the platform in MULTI MODE.
+# There is deliberately NO hardcoded fallback: a feed URL carries a private key and
+# this repo is public. An unset secret means the feed is skipped, and with no feed at
+# all the run aborts without touching the archive (see main()).
 FEEDS = (
     {'channel': 'Airbnb',      'env': 'ICAL_URL_AIRBNB'},
     {'channel': 'Booking.com', 'env': 'ICAL_URL_BOOKING'},
     {'channel': 'Fewo-direkt', 'env': 'ICAL_URL_FEWO'},
-    {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY', 'fallback': LEGACY_HUB_URL},
+    {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY'},
 )
 
 # Airbnb writes this SUMMARY for every blocked (not booked) day and the hub mirrors it
@@ -708,7 +706,7 @@ def resolve_feeds(fixtures=None):
             if os.path.exists(path):
                 out.append({'channel': f['channel'], 'path': path})
             continue
-        url = os.environ.get(f['env'], '').strip() or f.get('fallback', '')
+        url = os.environ.get(f['env'], '').strip()
         if url:
             out.append({'channel': f['channel'], 'url': url})
     return out
