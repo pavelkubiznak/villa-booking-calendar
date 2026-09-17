@@ -127,9 +127,13 @@ special case downstream.
 
 Three rules keep this from causing the noise the calendar was just cleaned of:
 
-  * A hold whose dates are IDENTICAL to a live feed event is not published. That is the
-    owner having blocked the same term on a platform — one stay, not two, and emitting
-    both would render a red double booking.
+  * A live feed event whose dates are IDENTICAL to a direct sale is dropped (from the
+    archive AND from feed.ics). That is the same term blocked on a platform — by the
+    owner, or by the platform importing our own data/out/*.ics and the hub echoing it
+    back. One stay, not two, and the /sprava/ record is the one that carries `kind`.
+    (Until 2026-09-17 it was the other way round: the hold was dropped. Once the
+    outbound feeds went live every direct sale came back as an anonymous E-chalupy
+    booking and lost its pre-booking look.)
   * Holds never go stale. They are absent from every feed by definition; expiry is the
     database's job (`vr_public_holds()` simply stops returning an expired hold, so the
     term frees itself with no cron anywhere).
@@ -929,6 +933,22 @@ def main():
     today = datetime(now.year, now.month, now.day)
     today_s = today.strftime('%Y-%m-%d')
 
+    # Přímý prodej (předrezervace + potvrzené přímé rezervace) ze Supabase. PŘED zápisem
+    # feedu i archivu: událost z feedu se stejnými nocemi jako přímý prodej je ozvěna
+    # našeho vlastního bloku (platforma importuje data/out/*.ics a hub ho vrací jako
+    # „svou" rezervaci) nebo blok, který si majitel udělal ručně. Jeden pobyt, ne dva —
+    # a platí záznam ze správy: nese `kind`, vzhled předrezervace a vazbu na /sprava/.
+    holds_raw = fetch_holds(fixtures)
+    holds = None if holds_raw is None else valid_holds(holds_raw)
+    known = holds if holds is not None else [e for e in history.values()
+                                             if e.get('kind') in HOLD_KINDS]
+    hold_spans = {(h['start'], h['end']) for h in known}
+    echoes = [e for e in events if (e['start'], e['end']) in hold_spans]
+    events = [e for e in events if (e['start'], e['end']) not in hold_spans]
+    for e in echoes:
+        print(f"  direct: {e['start']}→{e['end']} from the {e['feed_ch']} feed dropped — "
+              f"same nights as a direct sale (echo of our own block)")
+
     adopted, refused = adopt_existing_uidh(events, history, today)
     for old, new, s, e_, p in adopted:
         print(f'uidh continuity: {s}→{e_} {p} kept archived key {old} (feed now says {new})')
@@ -957,10 +977,6 @@ def main():
         }
     print(f'New: {new}, total: {len(history)}')
 
-    # Přímý prodej (předrezervace + potvrzené přímé rezervace) ze Supabase. Až ZA
-    # feedy, aby se dalo poznat, který termín je zároveň zablokovaný na platformě.
-    holds_raw = fetch_holds(fixtures)
-    holds = None if holds_raw is None else valid_holds(holds_raw)
     for line in apply_holds(history, holds, events, today_s):
         print('  direct: ' + line)
 

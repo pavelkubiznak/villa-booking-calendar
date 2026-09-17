@@ -574,8 +574,12 @@ def test_direct_sales():
     check('nese holdUntil', hold.get('holdUntil') == '2026-10-01', str(hold.get('holdUntil')))
     check('není duch', hold.get('stale') is False, str(hold.get('stale')))
 
-    check('termín krytý blokem z platformy se nepublikuje', '1111111111111111' not in by)
-    check('a je to vidět v logu', 'already blocked on a platform' in r.stdout)
+    check('termín krytý blokem z platformy: platí záznam ze správy', '1111111111111111' in by
+          and by['1111111111111111'].get('kind') == 'direct')
+    check('a blok z platformy (ozvěna) je pryč z archivu i z feed.ics',
+          sum(1 for e in hist if e['start'] == '2027-08-14') == 1
+          and '20270814' not in (read(cwd, 'feed.ics') or ''))
+    check('a je to vidět v logu', 'echo of our own block' in r.stdout)
     check('rozbitý uidh neprojde', 'malformed uidh' in r.stdout)
 
     check('do feed.ics se přímý prodej nepíše', '2222222222222222' not in (read(cwd, 'feed.ics') or ''))
@@ -689,8 +693,11 @@ def test_outbound_feeds_hub_mode():
     air = out(cwd, 'airbnb.ics') or ''
     check('rezervace z hubu se ven neposílají', f':{d(10)}' not in (out(cwd, 'booking.ics') or 'x:' + d(10)))
     check('přímý prodej ano', '1111111111111111@villarudolf.com' in air)
-    check('i když ho archiv kvůli ozvěně z platformy nepublikuje',
-          'already blocked on a platform' in r.stdout and '1111111111111111' not in read(cwd, 'history.json'))
+    hist = json.loads(read(cwd, 'history.json'))
+    check('ozvěna z hubu přímý prodej nepřebije (zůstane Přímá, jednou)',
+          'echo of our own block' in r.stdout
+          and [e['platform'] for e in hist if e['start'] == iso(30)] == ['Přímá'])
+    check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout)
 
     # výpadek databáze: blok musí zůstat
     os.remove(os.path.join(d_, 'holds.json'))
