@@ -24,6 +24,7 @@ GitHub Pages posílá `Access-Control-Allow-Origin: *` — endpointy lze fetchov
 | `https://pavelkubiznak.github.io/villa-booking-calendar/data/feed.ics` | iCal | **anonymizovaný** snapshot rezervací (`SUMMARY`=platforma, `UID`=uidh; bez Description/jmen/kontaktů) | snapshot každé ~3 h |
 | `https://pavelkubiznak.github.io/villa-booking-calendar/data/history.json` | JSON | **anonymizovaný** archiv `{uidh,start,end,platform}` (i rezervace, co vypadly z feedu) | každé ~3 h při změně |
 | `.../data/prices.json` | JSON (AES-GCM šifrovaný) | ceny pobytů — **může neexistovat (404)**; bez tokenu nečitelné | při exportu majitelem |
+| `.../data/out/{airbnb,booking,fewo,echalupy}.ics` | iCal | **výstupní feedy** pro import na platformách: vše obsazené kromě vlastních rezervací dané platformy; jen data, `UID`=`uidh@villarudolf.com`. V hub módu jen přímé prodeje. Viz `CLAUDE.md` → „Výstupní feedy" | každé ~3 h při změně |
 
 **Pro nové stránky používej tyto same-origin/Pages URL, NIKDY přímý e-chalupy feed** — jeho URL
 obsahuje privátní klíč a záměrně bylo odstraněno ze všech klientských HTML (žije jen
