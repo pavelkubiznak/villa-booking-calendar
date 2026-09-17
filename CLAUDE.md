@@ -146,8 +146,11 @@ Co je na tom v tomhle repu podstatné:
   nekreslí „↑10", nepočítá se do přehledu úklidů ani do majitelských KPI.
 - **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
   vlastní rezervace ven je samostatný krok (viz „Cíl dál" níž).
-- **Hold se shodným termínem jako živá událost z feedu se nepublikuje** — to je vlastní
-  blokace na platformě, ne druhá rezervace.
+- **Událost z feedu se shodným termínem jako přímý prodej se zahazuje** (z archivu
+  i z `feed.ics`) — je to ozvěna našeho bloku z `data/out/*.ics` nebo ruční blokace
+  majitele, ne druhá rezervace. Platí záznam ze správy (nese `kind`). Do 2026-09-17 to
+  bylo obráceně (zahazoval se hold); po zapojení výstupních feedů by se každý přímý
+  prodej vrátil jako anonymní pobyt z e-chalupy a ztratil vzhled předrezervace.
 - **Když RPC selže, holdy v archivu zůstanou** a běh pokračuje (na rozdíl od selhaného feedu).
 
 `isHold()` / `holdNote()` / `fmtISO()` jsou v `index.html` i `owner.html`
@@ -194,8 +197,17 @@ Jen data, `SUMMARY` je konstanta, UID = `uidh@villarudolf.com`.
 - Když databáze neodpoví, berou se přímé prodeje z archivu (blok zůstane). Když selže
   feed, běh skončí před zápisem a staré soubory zůstanou ležet.
 
-**⏭️ Zbývá (majitel):** vložit adresy do importu kalendáře na všech čtyřech platformách —
-to jde hned, v hub módu tím začnou samy blokovat přímé prodeje. Pak 3 secrety → MULTI mód
+**Importy zapojené 2026-09-17** na Airbnb, Booking.com, FeWo-direkt i e-chalupy (všude
+VEDLE stávajícího importu z e-chalupy, ten se odebere až v MULTI módu). Ověřeno na
+e-chalupy: srpen 2027 včetně obou přímých prodejů je obsazený. E-chalupy první pokus
+o import ohlásily jako chybu, „ihned importovat" prošlo; Booking napoprvé hlásil
+„not a valid iCal URL", napodruhé vzal. Na Bookingu visí i staré napojení **Lodgify**
+(„Import needed") — ke smazání. E-chalupy importují i **Megaubytko.cz** — pátý kanál,
+o kterém `FEEDS` neví; než se e-chalupy přestanou číst jako hub, musí dostat vlastní
+feed (`ICAL_URL_MEGAUBYTKO`) a vlastní `data/out/megaubytko.ics`, jinak se jeho
+rezervace ztratí.
+
+**⏭️ Zbývá (majitel):** 3 secrety → MULTI mód
 → na e-chalupy vypnout cross-iCal na ostatní platformy.
 
 ⚠️ **Neověřené riziko pro MULTI mód:** jestli Booking/FeWo importovaný blok **re-exportují**
