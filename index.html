@@ -243,6 +243,7 @@
   <div class="legend-item"><div class="legend-swatch" style="background:#2980B9"></div> Booking.com</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#16A085"></div> Megaubytko</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#8E44AD"></div> Přímá</div>
   <div class="legend-item"><div class="legend-swatch" style="background:#F4ECF7;outline:1px dashed #8E44AD;outline-offset:-1px"></div> Předrezervace</div>
 </div>
@@ -271,6 +272,7 @@
         <option value="Booking.com">Booking.com</option>
         <option value="E-chalupy">E-chalupy</option>
         <option value="Fewo-direkt">Fewo-direkt</option>
+        <option value="Megaubytko">Megaubytko</option>
       </select>
     </div>
   </div>
@@ -344,8 +346,8 @@ const REMOTE_HISTORY_URL = 'data/history.json';
 // 'Přímá' = přímý prodej (předrezervace i potvrzená přímá rezervace). Nechodí
 // z žádného feedu — do history.json ji doplňuje Action ze Supabase, viz
 // update_history.py → DIRECT SALES. Fialová schválně nesousedí s barvami platforem.
-const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12', 'Přímá':'#8E44AD' };
-const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7', 'Přímá':'#F4ECF7' };
+const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12', 'Megaubytko':'#16A085', 'Přímá':'#8E44AD' };
+const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7', 'Megaubytko':'#E8F8F5', 'Přímá':'#F4ECF7' };
 
 // Předrezervace = zálohová faktura vystavená, ale ještě neuhrazená. Termín drží,
 // ale úklid se na ni neplánuje a v mřížce vypadá jinak než potvrzený pobyt.

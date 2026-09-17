@@ -257,6 +257,7 @@
     <div class="legend-item"><div class="legend-swatch" style="background:#2980B9"></div> Booking.com</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#16A085"></div> Megaubytko</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#8E44AD"></div> Přímá</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#F4ECF7;outline:1px dashed #8E44AD;outline-offset:-1px"></div> Předrezervace</div>
   </div>
@@ -340,8 +341,8 @@ const PBKDF2_ITERS = 310000;                   // OWASP-recommended floor (runs 
 // 'Přímá' = přímý prodej (předrezervace i potvrzená přímá rezervace). Nechodí
 // z žádného feedu — do history.json ji doplňuje Action ze Supabase, viz
 // update_history.py → DIRECT SALES. Fialová schválně nesousedí s barvami platforem.
-const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12', 'Přímá':'#8E44AD' };
-const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7' };
+const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12', 'Megaubytko':'#16A085', 'Přímá':'#8E44AD' };
+const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7', 'Megaubytko':'#E8F8F5', 'Přímá':'#F4ECF7' };
 const RESERVATION_LABEL = 'Rezervace';   // guest names are gone — look the guest up in the platform extranet
 function platformOf(s) { return COL[s] ? s : 'E-chalupy'; }
 function is16hex(k) { return /^[0-9a-f]{16}$/.test(String(k)); }
@@ -1021,7 +1022,7 @@ function renderKPIs(bookings) {
 }
 
 function renderBreakdown(k) {
-  const order = ['Airbnb','Booking.com','E-chalupy','Fewo-direkt'];
+  const order = ['Airbnb','Booking.com','E-chalupy','Fewo-direkt','Megaubytko','Přímá'];
   const rows = order.filter(p => k.byPlat[p]);
   const max = Math.max(1, ...rows.map(p => k.byPlat[p].revenue));
   const wrap = document.getElementById('bd-rows');

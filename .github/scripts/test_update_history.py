@@ -676,6 +676,25 @@ def test_outbound_feeds_multi():
           r2.returncode == 0 and (out(cwd, 'fewo.ics'), out(cwd, 'airbnb.ics')) == (fewo, air))
 
 
+def test_megaubytko_channel():
+    """Pátý kanál. Skutečný feed Megaubytka zatím nikdo neviděl — tohle hlídá jen to, že
+    kanál projde celou rourou, POKUD jeho UID nese doménu (předpoklad v uid_channel)."""
+    print('\nMEGAUBYTKO — pátý kanál')
+    d_ = tempfile.mkdtemp(prefix='vr-mega-')
+    for ch, ev in (('Airbnb',     vevent('a1@airbnb.com', 'Reserved', d(10), d(14))),
+                   ('Megaubytko', vevent('res-77@megaubytko.cz', 'Rezervace', d(20), d(24)))):
+        open(os.path.join(d_, ch + '.ics'), 'w', encoding='utf-8').write(calendar(ev))
+    json.dump([], open(os.path.join(d_, 'holds.json'), 'w'))
+    cwd = workdir()
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    plats = sorted(e['platform'] for e in json.loads(read(cwd, 'history.json')))
+    check('rezervace je v archivu jako Megaubytko', plats == ['Airbnb', 'Megaubytko'], str(plats))
+    mega, air = out(cwd, 'megaubytko.ics') or '', out(cwd, 'airbnb.ics') or ''
+    check('megaubytko.ics: bez vlastní, s Airbnb', f':{d(20)}' not in mega and f':{d(10)}' in mega)
+    check('airbnb.ics dostane rezervaci z Megaubytka', f':{d(20)}' in air)
+
+
 def test_outbound_feeds_hub_mode():
     """V hub módu ven jen přímý prodej — zbytek si hub zrcadlí sám a vrátil by se jako
     druhá živá událost přes stejné noci."""
@@ -739,6 +758,7 @@ if __name__ == '__main__':
     test_direct_sales_source_unavailable()
     test_direct_sales_expiry_frees_the_term()
     test_outbound_feeds_multi()
+    test_megaubytko_channel()
     test_outbound_feeds_hub_mode()
     test_dry_run_writes_nothing()
     if SKIPPED:

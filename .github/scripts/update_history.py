@@ -64,7 +64,7 @@ MODES (chosen automatically, so nothing changes until the secrets exist):
                 as a second, conflicting stay under the reading channel's name.
 
 Feed URLs come from the environment (they are private keys — never commit them):
-    ICAL_URL_AIRBNB · ICAL_URL_BOOKING · ICAL_URL_FEWO · ICAL_URL_ECHALUPY
+    ICAL_URL_AIRBNB · ICAL_URL_BOOKING · ICAL_URL_FEWO · ICAL_URL_MEGAUBYTKO · ICAL_URL_ECHALUPY
 
 --------------------------------------------------------------------------------
 OWN-BOOKING FILTER — the part that must not silently eat a real reservation
@@ -194,7 +194,7 @@ FEED_FILE    = 'data/feed.ics'
 
 # 'Přímá' = přímý prodej (předrezervace i potvrzená přímá rezervace). Nepochází z
 # žádného feedu, chodí z Supabase — viz DIRECT SALES v hlavičce.
-PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt', 'Přímá')
+PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt', 'Megaubytko', 'Přímá')
 
 HOLD_PLATFORM = 'Přímá'
 HOLD_KINDS    = ('hold', 'direct')
@@ -206,6 +206,7 @@ OUT_FEEDS = (
     ('airbnb.ics',    'Airbnb'),
     ('booking.ics',   'Booking.com'),
     ('fewo.ics',      'Fewo-direkt'),
+    ('megaubytko.ics', 'Megaubytko'),
     ('echalupy.ics',  'E-chalupy'),
 )
 OUT_SUMMARY = 'Villa Rudolf - obsazeno'
@@ -233,6 +234,7 @@ FEEDS = (
     {'channel': 'Airbnb',      'env': 'ICAL_URL_AIRBNB'},
     {'channel': 'Booking.com', 'env': 'ICAL_URL_BOOKING'},
     {'channel': 'Fewo-direkt', 'env': 'ICAL_URL_FEWO'},
+    {'channel': 'Megaubytko',  'env': 'ICAL_URL_MEGAUBYTKO'},
     {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY'},
 )
 
@@ -248,6 +250,7 @@ BLOCK_SUMMARIES = {
     # so no SUMMARY-based rule may be applied to them — UID origin is the only signal.
     'Booking.com': (),
     'Fewo-direkt': (),
+    'Megaubytko': (),
     'E-chalupy': (),
 }
 
@@ -323,6 +326,11 @@ def implied_dtend(dtstart, duration):
 
 def uid_channel(uid):
     """Which system minted this UID. Same rules the hub feed has always used."""
+    # Megaubytko.cz (2026-09-17): its real feed has not been seen yet — the e-chalupy hub
+    # imports it, that is all we know. ASSUMPTION: its UIDs name the domain. If they do
+    # not, the first MULTI dry-run shows its events filtered as someone else's and this
+    # rule gets fixed then; until that feed is configured nothing changes anywhere.
+    if 'megaubytko' in uid.lower(): return 'Megaubytko'
     if '@airbnb.com'   in uid: return 'Airbnb'
     if '@booking.com'  in uid: return 'Booking.com'
     if '@'         not in uid: return 'Fewo-direkt'
