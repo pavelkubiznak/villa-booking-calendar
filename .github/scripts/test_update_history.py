@@ -419,6 +419,50 @@ def test_failed_feed_aborts():
     check('says why', 'refusing to rewrite' in r.stderr, r.stderr[-300:])
 
 
+def test_missing_hub_feed_aborts():
+    print('\nBEZPEČNOST — chybějící e-chalupy feed nesmí přepsat archiv z části světa')
+    # Regression: once LEGACY_HUB_URL was deleted, ICAL_URL_ECHALUPY could be unset while
+    # another secret was set. resolve_feeds() then returned a nonempty list, the emptiness
+    # check in main() did not fire, and the archive was rewritten from that partial view —
+    # every hub-owned stay stopped being refreshed and aged into `stale` in two days.
+    seed = [{'uidh': 'aaaabbbbccccdddd', 'start': iso(40), 'end': iso(47),
+             'platform': 'E-chalupy', 'firstSeen': ago(120), 'lastSeen': ago(1),
+             'stale': False}]
+    env = {k: v for k, v in os.environ.items() if not k.startswith('ICAL_URL_')}
+    env['ICAL_URL_AIRBNB'] = 'https://www.example.invalid/airbnb.ics'   # never fetched
+    cwd = workdir(seed)
+    before = read(cwd, 'history.json')
+    r = run(cwd, env=env)
+    check('exits non-zero', r.returncode != 0, str(r.returncode))
+    check('archive left untouched', read(cwd, 'history.json') == before)
+    check('no feed.ics written', read(cwd, 'feed.ics') is None)
+    check('names the missing feed', 'E-chalupy' in r.stderr and 'ICAL_URL_ECHALUPY' in r.stderr,
+          r.stderr[-300:])
+    check('says why', 'refusing to rewrite' in r.stderr, r.stderr[-300:])
+    # The discriminating assertion. Without the guard the run gets as far as printing
+    # its mode and then rewrites the archive; above, `archive left untouched` would
+    # only have held because example.invalid happens not to resolve.
+    check('never reached the feed', 'Mode:' not in r.stdout, r.stdout[-300:])
+
+    # Unit level, so the rule is pinned independently of how a run happens to fail.
+    uh = load_module()
+    keep = {k: os.environ.get(k) for k in ('ICAL_URL_ECHALUPY',)}
+    try:
+        os.environ.pop('ICAL_URL_ECHALUPY', None)
+        names = lambda: [f['channel'] for f in uh.missing_required_feeds()]
+        check('unset hub secret is reported missing', names() == ['E-chalupy'], str(names()))
+        check('--fixtures is exempt: it exists to run channel subsets offline',
+              uh.missing_required_feeds('/tmp/whatever') == [])
+        os.environ['ICAL_URL_ECHALUPY'] = 'https://www.example.invalid/hub.ics'
+        check('set hub secret leaves nothing missing', names() == [])
+        os.environ['ICAL_URL_ECHALUPY'] = '   '
+        check('whitespace-only secret still counts as missing', names() == ['E-chalupy'])
+    finally:
+        for k, v in keep.items():
+            if v is None: os.environ.pop(k, None)
+            else:         os.environ[k] = v
+
+
 def test_fetch_error_never_leaks_url():
     print('\nBEZPEČNOST — chyba stahování nesmí do (veřejného) logu vypsat URL feedu')
     key = 'SECRETKEY6C517e26'
@@ -725,6 +769,7 @@ if __name__ == '__main__':
     test_uidh_continuity()
     test_stale_archive_never_adopted()
     test_failed_feed_aborts()
+    test_missing_hub_feed_aborts()
     test_fetch_error_never_leaks_url()
     test_parser_edges()
     test_cli()
