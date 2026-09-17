@@ -167,6 +167,43 @@ pořadí.
 Chybu v `owner.html`, kde `fetchAndMergeRemoteHistory()` zahazoval příznak `stale`, mezitím
 opravila stejná změna, která zavedla `isGhost` — obě session na ni narazily nezávisle.
 
+## Výstupní feedy — náš kalendář jako zdroj pravdy (kód HOTOV 2026-09-17, čeká na zapojení)
+
+Majitel 17. 9.: *„vykašlat se na e-chalupy jako hub, zdrojem ať je náš kalendář a platformy
+ať ho jen zrcadlí."* Kalendář platformy přepsat nejde, ale každá umí **importovat iCal**
+a blokovat podle něj. `update_history.py` proto při každém běhu píše čtyři soubory:
+
+| soubor | kdo ho importuje | co v něm NENÍ |
+|---|---|---|
+| `data/out/airbnb.ics` | Airbnb | rezervace z Airbnb |
+| `data/out/booking.ics` | Booking.com | rezervace z Bookingu |
+| `data/out/fewo.ics` | FeWo-direkt | rezervace z FeWo |
+| `data/out/echalupy.ics` | e-chalupy | rezervace z e-chalupy |
+
+Adresa: `https://pavelkubiznak.github.io/villa-booking-calendar/data/out/<soubor>`.
+Jen data, `SUMMARY` je konstanta, UID = `uidh@villarudolf.com`.
+
+- **Zdroj jsou události z TOHOTO běhu + přímý prodej, ne archiv.** Archiv drží zmizelý
+  pobyt 2 dny „živý" (`STALE_AFTER_DAYS`); storno na Bookingu nesmí 2 dny blokovat Airbnb.
+- **Přímý prodej je ve výstupu VŽDY**, i když ho `apply_holds()` do archivu nepustí kvůli
+  shodnému termínu z platformy. Jinak by blok závisel na vlastní ozvěně: platforma
+  importuje blok → hlásí ty noci → hold vypadne → platforma odblokuje → hold se vrátí…
+- **V HUB módu jdou ven JEN přímé prodeje.** Rezervace platforem si hub zrcadlí sám;
+  poslat mu je zpátky = vrátí se pod novým e-chalupy UID jako druhá živá událost přes
+  stejné noci = falešná červená dvojitá rezervace. Plný obsah až v MULTI módu.
+- Když databáze neodpoví, berou se přímé prodeje z archivu (blok zůstane). Když selže
+  feed, běh skončí před zápisem a staré soubory zůstanou ležet.
+
+**⏭️ Zbývá (majitel):** vložit adresy do importu kalendáře na všech čtyřech platformách —
+to jde hned, v hub módu tím začnou samy blokovat přímé prodeje. Pak 3 secrety → MULTI mód
+→ na e-chalupy vypnout cross-iCal na ostatní platformy.
+
+⚠️ **Neověřené riziko pro MULTI mód:** jestli Booking/FeWo importovaný blok **re-exportují**
+ve svém feedu jako vlastní událost. Airbnb ne (a jeho „Not available" se filtruje).
+Kdyby ano, `collapse_cross_feed_duplicates()` ozvěnu sloučí, ale vítěze při shodě
+`uid_ch == feed_ch` určuje pořadí čtení — ozvěna by mohla vyhrát a blok rozkmitat.
+Zkontrolovat v logu prvního `--dry-run` po zapojení importů.
+
 ## Čtyři feedy místo jednoho hubu (kód HOTOV 2026-08-13, čeká na 3 secrety)
 
 Dřív se četl **jen** e-chalupy feed. E-chalupy fungují jako hub — mají cross-iCal na Airbnb,
@@ -311,6 +348,10 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
   manifest, standalone režim a respektování safe-area.
 - 2026-09-09: **předrezervace a přímý prodej** (viz výš) — pátá platforma `Přímá`,
   `kind` v `history.json`, čtení `vr_public_holds()` ze Supabase.
+- 2026-09-17: **výstupní feedy `data/out/*.ics`** (viz výš). Tentýž den: kalendář byl od
+  16. 9. zamrzlý — PR #7 smazal `LEGACY_HUB_URL`, ale secret `ICAL_URL_ECHALUPY` v repu
+  nebyl (všechny běhy `no feed configured`); majitel ho doplnil. A do `vr_holds` ručně
+  doplněn potvrzený přímý prodej 14.–21. 8. 2027 (v `vr_bookings` byl, v `vr_holds` ne).
 - 2026-09-04: ručně smazán osiřelý duch `3d35fe03b6a04aef` (Airbnb, 17.–19. 9. 2026).
   V `feed.ics` nikdy nebyl, `firstSeen`/`lastSeen` obojí `null`, v repu už v prvním commitu
   (2026-08-07) — původ se z dat určit nedá. **Co ten pobyt byl, ověřené není** (feedy jména

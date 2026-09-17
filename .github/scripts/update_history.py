@@ -141,7 +141,31 @@ They are deliberately NOT written into feed.ics. That file is the sanitized mirr
 what the platforms say; publishing our own bookings outward is a separate step (see
 "Cíl dál" in CLAUDE.md), and mixing the two would make it impossible to tell which is
 which.
-=======
+OUTBOUND FEEDS (2026-09-17)
+================================================================================
+The goal is for THIS calendar to be the source of truth and for every platform to
+mirror it, instead of e-chalupy playing hub. A platform's calendar cannot be written
+to — but every platform can IMPORT an iCal and block the dates in it. So each run also
+writes data/out/<platform>.ics: everything occupied EXCEPT that platform's own
+reservations (sending those back would keep a cancelled stay blocked on its own
+platform, and invites a mirror loop).
+
+  * Source = this run's live feed events + direct sales. NOT the archive: the archive
+    keeps a vanished stay "live" for STALE_AFTER_DAYS, and a cancelled Booking stay
+    must not block Airbnb for two more days. A failed feed aborts the run before
+    anything is written, so the previous files simply stay in place.
+  * A direct sale is ALWAYS in every outbound feed — even when apply_holds() did not
+    publish it because a platform already shows the same dates. Once Booking imports
+    our block and (if it re-exports it) reports those nights itself, the hold would
+    drop out, Booking would unblock, the hold would come back... the block must not
+    depend on its own echo.
+  * HUB MODE publishes direct sales ONLY. The hub already cross-syncs the platforms'
+    own reservations; feeding them back into e-chalupy would return them under fresh
+    e-chalupy UIDs — a second live event over the same nights, i.e. a false red double
+    booking. Full content starts with MULTI MODE.
+  * Dates only. SUMMARY is a constant, UID is the uidh. All-day events, DTEND = the
+    checkout day (exclusive), so the turnover day stays bookable.
+
 Only LIVE archived entries are eligible. A `stale` entry is a stay the feed stopped
 listing (cancelled, expired hold, edited away); a different guest booking the very same
 nights on the same platform must NOT inherit its uidh, or /sprava/ would glue the old
@@ -170,6 +194,17 @@ PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt', 'Přímá')
 
 HOLD_PLATFORM = 'Přímá'
 HOLD_KINDS    = ('hold', 'direct')
+
+# Outbound feeds the platforms import — see OUTBOUND FEEDS in the header. File name →
+# the platform whose own reservations are left out of that file.
+OUT_DIR   = 'data/out'
+OUT_FEEDS = (
+    ('airbnb.ics',    'Airbnb'),
+    ('booking.ics',   'Booking.com'),
+    ('fewo.ics',      'Fewo-direkt'),
+    ('echalupy.ics',  'E-chalupy'),
+)
+OUT_SUMMARY = 'Villa Rudolf - obsazeno'
 
 # The Action runs every ~3 h. Two days of grace means a transient outage (or a few
 # failed runs in a row) never flips a live booking to "stale" by accident.
@@ -452,6 +487,58 @@ def build_feed(events, rfc_dates=False):
         lines.append('UID:'     + e['uidh'])
         lines.append('STATUS:CONFIRMED')
         lines.append('END:VEVENT')
+    lines.append('END:VCALENDAR')
+    return '\r\n'.join(lines) + '\r\n'
+
+
+def out_entries(events, holds, history, multi, today_s):
+    """What is occupied from today on, as {uidh, start, end, platform, firstSeen}.
+
+    `holds` is this run's validated direct sales, or None when the database was not
+    read — then the direct sales already in the archive stand in for them (the same
+    "leave it blocked" direction apply_holds() takes)."""
+    if holds is None:
+        holds = [e for e in history.values() if e.get('kind') in HOLD_KINDS]
+    rows = [dict(h, platform=HOLD_PLATFORM) for h in holds]
+    if multi:
+        rows += events
+    out = {}
+    for r in rows:
+        if r['end'] <= today_s:                 # checkout today blocks no night
+            continue
+        out[r['uidh']] = {
+            'uidh': r['uidh'], 'start': r['start'], 'end': r['end'],
+            'platform': r['platform'],
+            'firstSeen': history.get(r['uidh'], {}).get('firstSeen') or today_s,
+        }
+    return list(out.values())
+
+
+def build_out_feed(entries, exclude_platform):
+    """One outbound iCal: every entry except `exclude_platform`'s own. DTSTAMP is the
+    entry's firstSeen, not "now" — a file that changes every run would be a commit
+    every three hours for nothing."""
+    lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//villa-rudolf//availability//CZ',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+    ]
+    for e in sorted(entries, key=lambda x: (x['start'], x['uidh'])):
+        if e['platform'] == exclude_platform:
+            continue
+        lines += [
+            'BEGIN:VEVENT',
+            'DTSTART;VALUE=DATE:' + e['start'].replace('-', ''),
+            'DTEND;VALUE=DATE:'   + e['end'].replace('-', ''),
+            'DTSTAMP:' + e['firstSeen'].replace('-', '') + 'T000000Z',
+            'SUMMARY:' + OUT_SUMMARY,
+            'UID:' + e['uidh'] + '@villarudolf.com',
+            'STATUS:CONFIRMED',
+            'TRANSP:OPAQUE',
+            'END:VEVENT',
+        ]
     lines.append('END:VCALENDAR')
     return '\r\n'.join(lines) + '\r\n'
 
@@ -877,6 +964,11 @@ def main():
     for line in apply_holds(history, holds, events, today_s):
         print('  direct: ' + line)
 
+    # Outbound feeds — from THIS run's events and direct sales, not from the archive.
+    outbound = out_entries(events, holds, history, multi, today_s)
+    print(f'Outbound feeds: {len(outbound)} occupied term(s)'
+          + ('' if multi else ' (hub mode — direct sales only)'))
+
     # Prune older than 18 months
     m, y = now.month - 18, now.year
     while m <= 0: m += 12; y -= 1
@@ -905,6 +997,12 @@ def main():
 
     with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    for name, platform in OUT_FEEDS:
+        with open(os.path.join(OUT_DIR, name), 'w', encoding='utf-8', newline='') as f:
+            f.write(build_out_feed(outbound, platform))
+    print(f'Outbound feeds written to {OUT_DIR}/ ({", ".join(n for n, _ in OUT_FEEDS)})')
 
     stale_n = sum(1 for e in output if e['stale'])
     print(f'Written {len(output)} entries to {HISTORY_FILE} '
