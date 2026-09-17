@@ -182,6 +182,7 @@ a blokovat podle něj. `update_history.py` proto při každém běhu píše čty
 | `data/out/booking.ics` | Booking.com | rezervace z Bookingu |
 | `data/out/fewo.ics` | FeWo-direkt | rezervace z FeWo |
 | `data/out/echalupy.ics` | e-chalupy | rezervace z e-chalupy |
+| `data/out/megaubytko.ics` | Megaubytko.cz | rezervace z Megaubytka |
 
 Adresa: `https://pavelkubiznak.github.io/villa-booking-calendar/data/out/<soubor>`.
 Jen data, `SUMMARY` je konstanta, UID = `uidh@villarudolf.com`.
@@ -202,10 +203,12 @@ VEDLE stávajícího importu z e-chalupy, ten se odebere až v MULTI módu). Ov�
 e-chalupy: srpen 2027 včetně obou přímých prodejů je obsazený. E-chalupy první pokus
 o import ohlásily jako chybu, „ihned importovat" prošlo; Booking napoprvé hlásil
 „not a valid iCal URL", napodruhé vzal. Na Bookingu visí i staré napojení **Lodgify**
-(„Import needed") — ke smazání. E-chalupy importují i **Megaubytko.cz** — pátý kanál,
-o kterém `FEEDS` neví; než se e-chalupy přestanou číst jako hub, musí dostat vlastní
-feed (`ICAL_URL_MEGAUBYTKO`) a vlastní `data/out/megaubytko.ics`, jinak se jeho
-rezervace ztratí.
+(„Import needed") — ke smazání. E-chalupy importují i **Megaubytko.cz** — pátý kanál.
+Od 2026-09-17 ho kód zná: `ICAL_URL_MEGAUBYTKO`, `data/out/megaubytko.ics`, platforma
+`Megaubytko` (tyrkysová `#16A085` / `#E8F8F5`) na obou stránkách. ⚠️ Jeho skutečný feed
+nikdo neviděl — `uid_channel()` PŘEDPOKLÁDÁ, že UID nese „megaubytko". Když ne, první
+MULTI `--dry-run` ukáže jeho události zahozené jako cizí a pravidlo se doladí. Bez secretu
+se nemění nic. Zbývá: secret, a import `megaubytko.ics` v administraci Megaubytka.
 
 **⏭️ Zbývá (majitel):** 3 secrety → MULTI mód
 → na e-chalupy vypnout cross-iCal na ostatní platformy.

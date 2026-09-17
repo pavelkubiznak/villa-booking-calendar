@@ -45,6 +45,7 @@ jobs:
           ICAL_URL_AIRBNB:    ${{ secrets.ICAL_URL_AIRBNB }}
           ICAL_URL_BOOKING:   ${{ secrets.ICAL_URL_BOOKING }}
           ICAL_URL_FEWO:      ${{ secrets.ICAL_URL_FEWO }}
+          ICAL_URL_MEGAUBYTKO: ${{ secrets.ICAL_URL_MEGAUBYTKO }}
           ICAL_URL_ECHALUPY:  ${{ secrets.ICAL_URL_ECHALUPY }}
         run: python3 .github/scripts/update_history.py
 
