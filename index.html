@@ -1122,8 +1122,11 @@ async function fetchAndMergeRemoteHistory() {
     if (!Array.isArray(data)) return 0;
     // Sanitized schema: { uidh, start, end, platform } — no guest field.
     // (Tolerate a legacy raw uid by hashing it, so a stale file still merges cleanly.)
+    // uidh musí mít tvar, který generuje skript (16 hex). Nesmysl v něm je rozbitý řádek:
+    // zahodí se a snapshot pak neplatí za úplný — jinak by smazal přímý prodej, který
+    // pod skutečným klíčem v souboru chybí.
     const events = data.map(e => ({
-      uid:      e.uidh || (e.uid ? uidHash(e.uid) : ''),
+      uid:      is16hex(e.uidh) ? e.uidh : (!e.uidh && e.uid ? uidHash(e.uid) : ''),
       start:    parseISODate(e.start),
       end:      parseISODate(e.end),
       platform: platformOf(e.platform),

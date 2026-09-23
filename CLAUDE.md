@@ -156,7 +156,7 @@ Co je na tom v tomhle repu podstatné:
   Na feedové a ruční záznamy se nesahá. **Prázdné pole je platná odpověď** (archiv
   opravdu nic nedrží) a cache se podle něj srovná taky; vynechá se jen to podezřelé —
   rozbitý fetch, nevalidní JSON, nebo pole, ze kterého **neprošel byť jediný řádek**
-  (chybí `uidh`, nečitelné nebo **nemožné** datum, nebo `end ≤ start` — takový pobyt
+  (chybí `uidh` nebo nemá tvar 16 hex, nečitelné nebo **nemožné** datum, nebo `end ≤ start` — takový pobyt
   neobsadí ani noc, a proto ho do `history.json` nepustí ani `parse_ics()` ve skriptu).
   Data čte `parseISODate()` (v obou stránkách **identická**), ne `new Date()`: ten
   z `2027-02-30` tiše udělá 2. 3. a rozbitý řádek by prošel jako platný pobyt jinde.
