@@ -156,8 +156,10 @@ Co je na tom v tomhle repu podstatné:
   Na feedové a ruční záznamy se nesahá. **Prázdné pole je platná odpověď** (archiv
   opravdu nic nedrží) a cache se podle něj srovná taky; vynechá se jen to podezřelé —
   rozbitý fetch, nevalidní JSON, nebo pole, ze kterého **neprošel byť jediný řádek**
-  (chybí `uidh`, nečitelné datum, nebo `end ≤ start` — takový pobyt neobsadí ani noc,
-  a proto ho do `history.json` nepustí ani `parse_ics()` ve skriptu).
+  (chybí `uidh`, nečitelné nebo **nemožné** datum, nebo `end ≤ start` — takový pobyt
+  neobsadí ani noc, a proto ho do `history.json` nepustí ani `parse_ics()` ve skriptu).
+  Data čte `parseISODate()` (v obou stránkách **identická**), ne `new Date()`: ten
+  z `2027-02-30` tiše udělá 2. 3. a rozbitý řádek by prošel jako platný pobyt jinde.
   Takový snapshot jen přidává: zahozený řádek může být právě ten přímý prodej a smazat
   ho z cache by termín nabídlo jako volný (stejná úvaha jako `prune_missing` ve skriptu).
   `owner.html` snapshot **použije až na úspěšné větvi `load()`, celý najednou**
@@ -188,7 +190,7 @@ Co je na tom v tomhle repu podstatné:
   z odpovědi (`known` v `main()`): jeho ozvěna z platformy se zahodí a **ve výstupních
   feedech zůstane** — jinak by se termín na platformách uvolnil kvůli rozbitému řádku.
 
-`isHold()` / `holdNote()` / `fmtISO()` jsou v `index.html` i `owner.html`
+`isHold()` / `holdNote()` / `fmtISO()` / `parseISODate()` jsou v `index.html` i `owner.html`
 **duplicitně a musí zůstat identické**, stejně jako zbytek půldenní logiky
 (`getDayHalves` / `isGhost` / `shown` / `halfStyle` / `findOverlaps`).
 
@@ -405,7 +407,7 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
 - 2026-09-23: **#14 srovnaný s #16/#17/#18** — neúplná odpověď `vr_public_holds()`
   drží ponechaný přímý prodej i ve filtru ozvěn a ve výstupních feedech; stěhování ceny
   (`migrateDirectSalePrices`) zrušeno, po #17 už nemá co řešit a škodilo by.
-  A `history.json` s jediným rozbitým řádkem (i s prohozenými daty) už cache v prohlížeči
+  A `history.json` s jediným rozbitým řádkem (i s prohozenými nebo nemožnými daty) už cache v prohlížeči
   nesrovnává, jen přidává; skript pobyt bez jediné noci z feedu zahazuje.
 - 2026-09-17: **výstupní feedy `data/out/*.ics`** (viz výš). Tentýž den: kalendář byl od
   16. 9. zamrzlý — PR #7 smazal `LEGACY_HUB_URL`, ale secret `ICAL_URL_ECHALUPY` v repu
