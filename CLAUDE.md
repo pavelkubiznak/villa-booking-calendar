@@ -155,7 +155,9 @@ Co je na tom v tomhle repu podstatné:
   nezestárne na ducha — dělá i falešnou dvojitou rezervaci proti blokaci z feedu.
   Na feedové a ruční záznamy se nesahá. **Prázdné pole je platná odpověď** (archiv
   opravdu nic nedrží) a cache se podle něj srovná taky; vynechá se jen to podezřelé —
-  rozbitý fetch, nevalidní JSON, nebo pole, ze kterého **neprošel byť jediný řádek**.
+  rozbitý fetch, nevalidní JSON, nebo pole, ze kterého **neprošel byť jediný řádek**
+  (chybí `uidh`, nečitelné datum, nebo `end ≤ start` — takový pobyt neobsadí ani noc,
+  a proto ho do `history.json` nepustí ani `parse_ics()` ve skriptu).
   Takový snapshot jen přidává: zahozený řádek může být právě ten přímý prodej a smazat
   ho z cache by termín nabídlo jako volný (stejná úvaha jako `prune_missing` ve skriptu).
   `owner.html` snapshot **použije až na úspěšné větvi `load()`, celý najednou**
@@ -403,7 +405,8 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
 - 2026-09-23: **#14 srovnaný s #16/#17/#18** — neúplná odpověď `vr_public_holds()`
   drží ponechaný přímý prodej i ve filtru ozvěn a ve výstupních feedech; stěhování ceny
   (`migrateDirectSalePrices`) zrušeno, po #17 už nemá co řešit a škodilo by.
-  A `history.json` s jediným rozbitým řádkem už cache v prohlížeči nesrovnává, jen přidává.
+  A `history.json` s jediným rozbitým řádkem (i s prohozenými daty) už cache v prohlížeči
+  nesrovnává, jen přidává; skript pobyt bez jediné noci z feedu zahazuje.
 - 2026-09-17: **výstupní feedy `data/out/*.ics`** (viz výš). Tentýž den: kalendář byl od
   16. 9. zamrzlý — PR #7 smazal `LEGACY_HUB_URL`, ale secret `ICAL_URL_ECHALUPY` v repu
   nebyl (všechny běhy `no feed configured`); majitel ho doplnil. A do `vr_holds` ručně

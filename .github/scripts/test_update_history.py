@@ -472,6 +472,15 @@ def test_parser_edges():
     check('no DTEND, DATE-TIME start → skipped (zero length) and logged without the UID',
           ev == [] and 'skipped VEVENT' in log and 'x4@airbnb.com' not in log, log)
 
+    ev, log = one(f'BEGIN:VEVENT\r\nUID:x6@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                  f'DTSTART;VALUE=DATE:{d(4)}\r\nDTEND;VALUE=DATE:{d(0)}\r\nEND:VEVENT\r\n')
+    check('DTEND before DTSTART → skipped and logged without the UID',
+          ev == [] and 'ends on or before' in log and 'x6@airbnb.com' not in log, log)
+
+    ev, _ = one(f'BEGIN:VEVENT\r\nUID:x7@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                f'DTSTART:{d(0)}T100000\r\nDTEND:{d(0)}T180000\r\nEND:VEVENT\r\n')
+    check('same-day DATE-TIME (no night) → skipped', ev == [], str(ev))
+
     ev, _ = one(f'BEGIN:VEVENT\r\nUID:x5@airbnb.com\r\nSUMMARY:Reserved\r\n'
                 f'DTSTART:{d(0)}T140000\r\nDURATION:P3D\r\nEND:VEVENT\r\n')
     check('DATE-TIME start + DURATION keeps the time of day on the implied DTEND',

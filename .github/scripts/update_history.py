@@ -370,6 +370,12 @@ def parse_ics(text):
                 continue
         start, end = ics_to_date(dtstart), ics_to_date(dtend)
         if not start or not end:                continue
+        # Pobyt bez jediné noci (DTEND ≤ DTSTART po převodu na den) nic neobsazuje —
+        # a v history.json by ho stránky vzaly za rozbitý řádek, takže by kvůli němu
+        # cache v prohlížeči přestaly srovnávat úplně (viz fetchAndMergeRemoteHistory).
+        if end <= start:
+            print(f'    ! skipped VEVENT starting {dtstart[:8]}: ends on or before its start')
+            continue
         # A UTC value is published as the Prague DATE it was converted to, so feed.ics
         # and history.json name the same day. Left raw, the clients would cut the time
         # off the Z value and the fresh feed (merged last) would drag the stay back

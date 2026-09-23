@@ -760,7 +760,7 @@ async function fetchAndMergeRemoteHistory() {
         // takže překryv s ním svítil červeně jako skutečná dvojitá rezervace.
         stale: e.stale === true,
       }))
-      .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
+      .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end) && e.end > e.start);
     // Srovnat cache smí JEN použitelný snapshot — výpadek sítě ani rozbitý soubor
     // nesmí uvolnit držený termín (stejná úvaha jako `holds is None` ve skriptu).
     // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se

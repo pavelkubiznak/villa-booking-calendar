@@ -1122,7 +1122,7 @@ async function fetchAndMergeRemoteHistory() {
       // stale = Action ho v posledních běžících feedech neviděl (viz update_history.py)
       stale:    e.stale === true,
     }))
-    .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
+    .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end) && e.end > e.start);
 
     // Srovnat cache smí JEN použitelný snapshot — výpadek sítě ani rozbitý soubor
     // nesmí uvolnit držený termín (stejná úvaha jako `holds is None` ve skriptu).
