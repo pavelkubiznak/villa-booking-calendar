@@ -764,15 +764,17 @@ async function fetchAndMergeRemoteHistory() {
     // Srovnat cache smí JEN použitelný snapshot — výpadek sítě ani rozbitý soubor
     // nesmí uvolnit držený termín (stejná úvaha jako `holds is None` ve skriptu).
     // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se
-    // zrušený hold musí z cache ztratit. Podezřelé je až pole, ze kterého neprošel
-    // ani jeden řádek — to je změna schématu nebo poškozený soubor, ne prázdno.
+    // zrušený hold musí z cache ztratit. Podezřelé je pole, ze kterého neprošel
+    // KAŽDÝ řádek — i jediný zahozený může být právě ten přímý prodej, který by se
+    // pak z cache smazal a jeho termín by se tvářil volný. Takový snapshot jen
+    // přidává (stejně jako neúplná odpověď databáze ve skriptu, `prune_missing`).
     // Použít se smí AŽ v load(), na úspěšné větvi, a to obě půlky naráz: přidat
     // dřív než smazat nejde — v cache by chvíli ležel zrušený přímý prodej i blokace
     // z platformy na tentýž termín (ta se do archivu vrátí, jakmile přímý prodej
     // zmizí), a kalendář by nad jedním pobytem vykreslil falešnou dvojitou rezervaci.
     // Nepovedený běh se prostě zopakuje celý.
     pendingSnapshot = {
-      uids: (data.length === 0 || events.length > 0) ? new Set(events.map(e => e.uid)) : null,
+      uids: events.length === data.length ? new Set(events.map(e => e.uid)) : null,
       events,
     };
     return events.length;
@@ -1410,9 +1412,10 @@ async function load(forceRefresh) {
     saveCache(text);
     // Teprve tady je jisté, že dorazil feed. Snapshot se aplikuje celý, nebo vůbec:
     // smazat zrušený přímý prodej a přidat, co je v archivu místo něj, patří k sobě.
+    // Neúplný snapshot (`uids === null`) nemaže nic, jen přidává — jako index.html.
     let appliedHist = 0;
-    if (pendingSnapshot && pendingSnapshot.uids) {
-      dropVanishedDirectSales(pendingSnapshot.uids);
+    if (pendingSnapshot) {
+      if (pendingSnapshot.uids) dropVanishedDirectSales(pendingSnapshot.uids);
       if (pendingSnapshot.events.length) mergeHistory(pendingSnapshot.events);
       appliedHist = pendingSnapshot.events.length;
     }

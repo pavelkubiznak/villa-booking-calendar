@@ -1127,9 +1127,11 @@ async function fetchAndMergeRemoteHistory() {
     // Srovnat cache smí JEN použitelný snapshot — výpadek sítě ani rozbitý soubor
     // nesmí uvolnit držený termín (stejná úvaha jako `holds is None` ve skriptu).
     // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se
-    // zrušený hold musí z cache ztratit. Podezřelé je až pole, ze kterého neprošel
-    // ani jeden řádek — to je změna schématu nebo poškozený soubor, ne prázdno.
-    if (data.length === 0 || events.length > 0) {
+    // zrušený hold musí z cache ztratit. Podezřelé je pole, ze kterého neprošel
+    // KAŽDÝ řádek — i jediný zahozený může být právě ten přímý prodej, který by se
+    // pak z cache smazal a jeho termín by se tvářil volný. Takový snapshot jen
+    // přidává (stejně jako neúplná odpověď databáze ve skriptu, `prune_missing`).
+    if (events.length === data.length) {
       dropVanishedDirectSales(new Set(events.map(e => e.uid)));
     }
     if (events.length === 0) return 0;
