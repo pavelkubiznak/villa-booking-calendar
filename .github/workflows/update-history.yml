@@ -45,6 +45,7 @@ jobs:
           ICAL_URL_AIRBNB:    ${{ secrets.ICAL_URL_AIRBNB }}
           ICAL_URL_BOOKING:   ${{ secrets.ICAL_URL_BOOKING }}
           ICAL_URL_FEWO:      ${{ secrets.ICAL_URL_FEWO }}
+          ICAL_URL_MEGAUBYTKO: ${{ secrets.ICAL_URL_MEGAUBYTKO }}
           ICAL_URL_ECHALUPY:  ${{ secrets.ICAL_URL_ECHALUPY }}
         run: python3 .github/scripts/update_history.py
 
@@ -52,7 +53,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/history.json data/feed.ics
+          git add data/history.json data/feed.ics data/out
           git diff --staged --quiet && echo "No changes" || (
             git commit -m "chore: update booking history [skip ci]"
             # Kdyby na větvi mezitím přibyl commit (sloučený PR, ruční smazání ducha),

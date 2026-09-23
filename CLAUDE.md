@@ -156,26 +156,21 @@ Co je na tom v tomhle repu podstatné:
   Na feedové a ruční záznamy se nesahá. **Prázdné pole je platná odpověď** (archiv
   opravdu nic nedrží) a cache se podle něj srovná taky; vynechá se jen to podezřelé —
   rozbitý fetch, nevalidní JSON, nebo pole, ze kterého neprošel ani jeden řádek.
-  ⚠️ **Cena pobytu se při tom stěhuje.** Přímý prodej zablokovaný na platformě se vrátí
-  feedem pod **jiným `uidh`**, takže původní záznam zmizí a `pruneOrphanPrices()` by
-  ručně zadanou cenu zahodila jako osiřelou. `migrateDirectSalePrices()` (jen
-  `owner.html`, ceny jinde nejsou) ji proto v `load()` **před** prune přesune na náhradu
-  se shodným `(start, end)` — a nikdy nepřepíše cenu, kterou náhrada už má.
-  Dědic musí být **živá událost z feedu** (`!stale && !kind`): archivní duch na stejný
-  termín kalendář stejně skrývá, takže cena na něm je ztracená.
-  Proto taky `owner.html` snapshot **použije až na úspěšné větvi `load()`, celý najednou**
-  (`pendingSnapshot`): smazat zrušený přímý prodej a přidat jeho náhradu patří k sobě.
-  Po půlkách to nejde ani jedním směrem — smazat dřív znamená přijít o migraci ceny, když
-  feed spadne; přidat dřív znamená mít chvíli v cache pobyt i jeho blokaci, a to je
-  falešná dvojitá rezervace. `index.html` ceny nemá a maže rovnou.
-  Když cena v tu chvíli není po ruce (žije jen ve vzdáleném `prices.json` a ten se
-  nestáhl), zapamatuje se dvojice `starý klíč → dědic` (`villa_cal_price_heirs_v1`, TTL
-  90 dní) a stěhování se dokončí, až cena dorazí. **Zastavit kvůli ceníku celé srovnání
-  cache by bylo horší:** poškozený `prices.json` by ho zablokoval napořád.
+  `owner.html` snapshot **použije až na úspěšné větvi `load()`, celý najednou**
+  (`pendingSnapshot`): přidat dřív než smazat by znamenalo mít chvíli v cache zrušený
+  přímý prodej i blokaci z platformy na tentýž termín (ta se do archivu vrátí, jakmile
+  přímý prodej zmizí), a to je falešná dvojitá rezervace. `index.html` maže rovnou.
+  **Cena se při tom NEstěhuje.** (Mezi 15. a 23. 9. to v #14 chvíli umělo —
+  `migrateDirectSalePrices()` — dokud #17 neotočil přednost: přímý prodej už feedem
+  pod jiným `uidh` nepřichází, takže zmizí jen když je opravdu zrušený. Stěhovat jeho
+  cenu na blokaci, která na platformě zůstala, by tu cenu započítalo do tržeb.)
 - **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
   vlastní rezervace ven je samostatný krok (viz „Cíl dál" níž).
-- **Hold se shodným termínem jako živá událost z feedu se nepublikuje** — to je vlastní
-  blokace na platformě, ne druhá rezervace.
+- **Událost z feedu se shodným termínem jako přímý prodej se zahazuje** (z archivu
+  i z `feed.ics`) — je to ozvěna našeho bloku z `data/out/*.ics` nebo ruční blokace
+  majitele, ne druhá rezervace. Platí záznam ze správy (nese `kind`). Do 2026-09-17 to
+  bylo obráceně (zahazoval se hold); po zapojení výstupních feedů by se každý přímý
+  prodej vrátil jako anonymní pobyt z e-chalupy a ztratil vzhled předrezervace.
 - **Když RPC selže, holdy v archivu zůstanou** a běh pokračuje (na rozdíl od selhaného feedu).
   Totéž platí, když odpověď **přijde, ale neprojde z ní ani jeden řádek**: `valid_holds()`
   vrátí `None` (nedostupné), ne prázdný seznam. Prázdný seznam je pro `apply_holds()`
@@ -184,9 +179,10 @@ Co je na tom v tomhle repu podstatné:
   A když se zahodí **jen některý** řádek, vrátí `valid_holds()` navíc `complete=False`
   a `apply_holds(..., prune_missing=False)` podle takového seznamu **jen přidává**: co
   v něm chybí, zůstane v archivu. Neúplný seznam nejde odlišit od „ten hold už neplatí",
-  a smazat prodaný termín je horší než nechat tam o běh dýl něco propadlého. (Hold, který
-  v odpovědi **byl** a jen se nepublikoval kvůli blokaci z platformy, se nevrací —
-  to rozhodl feed, ne rozbitý řádek.)
+  a smazat prodaný termín je horší než nechat tam o běh dýl něco propadlého.
+  Takový ponechaný přímý prodej se v tom běhu počítá všude, kde se počítá přímý prodej
+  z odpovědi (`known` v `main()`): jeho ozvěna z platformy se zahodí a **ve výstupních
+  feedech zůstane** — jinak by se termín na platformách uvolnil kvůli rozbitému řádku.
 
 `isHold()` / `holdNote()` / `fmtISO()` jsou v `index.html` i `owner.html`
 **duplicitně a musí zůstat identické**, stejně jako zbytek půldenní logiky
@@ -204,6 +200,55 @@ pořadí.
 
 Chybu v `owner.html`, kde `fetchAndMergeRemoteHistory()` zahazoval příznak `stale`, mezitím
 opravila stejná změna, která zavedla `isGhost` — obě session na ni narazily nezávisle.
+
+## Výstupní feedy — náš kalendář jako zdroj pravdy (kód HOTOV 2026-09-17, čeká na zapojení)
+
+Majitel 17. 9.: *„vykašlat se na e-chalupy jako hub, zdrojem ať je náš kalendář a platformy
+ať ho jen zrcadlí."* Kalendář platformy přepsat nejde, ale každá umí **importovat iCal**
+a blokovat podle něj. `update_history.py` proto při každém běhu píše čtyři soubory:
+
+| soubor | kdo ho importuje | co v něm NENÍ |
+|---|---|---|
+| `data/out/airbnb.ics` | Airbnb | rezervace z Airbnb |
+| `data/out/booking.ics` | Booking.com | rezervace z Bookingu |
+| `data/out/fewo.ics` | FeWo-direkt | rezervace z FeWo |
+| `data/out/echalupy.ics` | e-chalupy | rezervace z e-chalupy |
+| `data/out/megaubytko.ics` | Megaubytko.cz | rezervace z Megaubytka |
+
+Adresa: `https://pavelkubiznak.github.io/villa-booking-calendar/data/out/<soubor>`.
+Jen data, `SUMMARY` je konstanta, UID = `uidh@villarudolf.com`.
+
+- **Zdroj jsou události z TOHOTO běhu + přímý prodej, ne archiv.** Archiv drží zmizelý
+  pobyt 2 dny „živý" (`STALE_AFTER_DAYS`); storno na Bookingu nesmí 2 dny blokovat Airbnb.
+- **Přímý prodej je ve výstupu VŽDY**, i když ho `apply_holds()` do archivu nepustí kvůli
+  shodnému termínu z platformy. Jinak by blok závisel na vlastní ozvěně: platforma
+  importuje blok → hlásí ty noci → hold vypadne → platforma odblokuje → hold se vrátí…
+- **V HUB módu jdou ven JEN přímé prodeje.** Rezervace platforem si hub zrcadlí sám;
+  poslat mu je zpátky = vrátí se pod novým e-chalupy UID jako druhá živá událost přes
+  stejné noci = falešná červená dvojitá rezervace. Plný obsah až v MULTI módu.
+- Když databáze neodpoví, berou se přímé prodeje z archivu (blok zůstane). Když selže
+  feed, běh skončí před zápisem a staré soubory zůstanou ležet.
+
+**Importy zapojené 2026-09-17** na Airbnb, Booking.com, FeWo-direkt i e-chalupy (všude
+VEDLE stávajícího importu z e-chalupy, ten se odebere až v MULTI módu). Ověřeno na
+e-chalupy: srpen 2027 včetně obou přímých prodejů je obsazený. E-chalupy první pokus
+o import ohlásily jako chybu, „ihned importovat" prošlo; Booking napoprvé hlásil
+„not a valid iCal URL", napodruhé vzal. Na Bookingu visí i staré napojení **Lodgify**
+(„Import needed") — ke smazání. E-chalupy importují i **Megaubytko.cz** — pátý kanál.
+Od 2026-09-17 ho kód zná: `ICAL_URL_MEGAUBYTKO`, `data/out/megaubytko.ics`, platforma
+`Megaubytko` (tyrkysová `#16A085` / `#E8F8F5`) na obou stránkách. ⚠️ Jeho skutečný feed
+nikdo neviděl — `uid_channel()` PŘEDPOKLÁDÁ, že UID nese „megaubytko". Když ne, první
+MULTI `--dry-run` ukáže jeho události zahozené jako cizí a pravidlo se doladí. Bez secretu
+se nemění nic. Zbývá: secret, a import `megaubytko.ics` v administraci Megaubytka.
+
+**⏭️ Zbývá (majitel):** 3 secrety → MULTI mód
+→ na e-chalupy vypnout cross-iCal na ostatní platformy.
+
+⚠️ **Neověřené riziko pro MULTI mód:** jestli Booking/FeWo importovaný blok **re-exportují**
+ve svém feedu jako vlastní událost. Airbnb ne (a jeho „Not available" se filtruje).
+Kdyby ano, `collapse_cross_feed_duplicates()` ozvěnu sloučí, ale vítěze při shodě
+`uid_ch == feed_ch` určuje pořadí čtení — ozvěna by mohla vyhrát a blok rozkmitat.
+Zkontrolovat v logu prvního `--dry-run` po zapojení importů.
 
 ## Čtyři feedy místo jednoho hubu (kód HOTOV 2026-08-13, čeká na 3 secrety)
 
@@ -257,14 +302,18 @@ i workflow před ostrým během). `--dry-run` spočítá vše a nic nezapíše, 
 čte `<dir>/<kanál>.ics` místo sítě.
 
 **⏭️ Zbývá:** přidat do repo secrets `ICAL_URL_AIRBNB`, `ICAL_URL_BOOKING`, `ICAL_URL_FEWO`
-(a ideálně `ICAL_URL_ECHALUPY`, viz níž) a pak pustit workflow ručně s `--dry-run`, než se
-nechá zapisovat. Filtrovací pravidla jsou navržená podle toho, jak vypadá **hub** feed —
+a pak pustit workflow ručně s `--dry-run`, než se nechá zapisovat. Filtrovací pravidla jsou navržená podle toho, jak vypadá **hub** feed —
 ostré feedy jednotlivých kanálů zatím nikdo neviděl, takže první běh je potřeba přečíst
 v logu a pravidla případně doladit. Proto ten hlasitý log a proto `--dry-run`.
 
-⚠️ **Legacy e-chalupy URL i s klíčem je pořád v `update_history.py`** jako fallback, aby
-Action nepřestala běžet. V repu bylo odjakživa, takže je stejně prozrazené — ale patří pryč:
-nastav `ICAL_URL_ECHALUPY` jako secret a konstantu `LEGACY_HUB_URL` smaž.
+🔴 **`ICAL_URL_ECHALUPY` je od 2026-09-16 POVINNÝ.** Zadrátovaná e-chalupy URL i s klíčem
+sloužila jako fallback natvrdo v kódu; ta je pryč (`LEGACY_HUB_URL` smazána). Bez toho
+secretu skript skončí `ERROR: no feed configured` a archiv **nepřepíše** — data zamrznou,
+ale nerozbijí se.
+
+⚠️ **Smazání z kódu ten klíč neodvolalo.** Repo je veřejné a URL v něm byla od prvního
+commitu, takže je pořád v git historii a v každém forku či mirroru. Jediná skutečná
+náprava je **přegenerovat feed na e-chalupy** a nový klíč dát rovnou jen do secretu.
 
 Cíl dál: vlastní feed publikovat **ven** a nechat platformy odebírat jeho, ne e-chalupy.
 
@@ -349,6 +398,13 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
   `valid_holds()` spadla na řádku, který není objekt.
 - 2026-09-09: **předrezervace a přímý prodej** (viz výš) — pátá platforma `Přímá`,
   `kind` v `history.json`, čtení `vr_public_holds()` ze Supabase.
+- 2026-09-23: **#14 srovnaný s #16/#17/#18** — neúplná odpověď `vr_public_holds()`
+  drží ponechaný přímý prodej i ve filtru ozvěn a ve výstupních feedech; stěhování ceny
+  (`migrateDirectSalePrices`) zrušeno, po #17 už nemá co řešit a škodilo by.
+- 2026-09-17: **výstupní feedy `data/out/*.ics`** (viz výš). Tentýž den: kalendář byl od
+  16. 9. zamrzlý — PR #7 smazal `LEGACY_HUB_URL`, ale secret `ICAL_URL_ECHALUPY` v repu
+  nebyl (všechny běhy `no feed configured`); majitel ho doplnil. A do `vr_holds` ručně
+  doplněn potvrzený přímý prodej 14.–21. 8. 2027 (v `vr_bookings` byl, v `vr_holds` ne).
 - 2026-09-04: ručně smazán osiřelý duch `3d35fe03b6a04aef` (Airbnb, 17.–19. 9. 2026).
   V `feed.ics` nikdy nebyl, `firstSeen`/`lastSeen` obojí `null`, v repu už v prvním commitu
   (2026-08-07) — původ se z dat určit nedá. **Co ten pobyt byl, ověřené není** (feedy jména
@@ -356,6 +412,11 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
   na živou Airbnb rezervaci 19.–26. 9. Jistotu dá jen Airbnb extranet. Smazání bylo
   rozhodnutí majitele; prune (`end >= dnes−18 měsíců`) by ho jinak držel do března 2028.
   Že smazání drží, viz výjimku v provozním pravidle 2.
+- 2026-09-16: **`LEGACY_HUB_URL` smazána** z `update_history.py` (a ta samá URL i z
+  `test_update_history.py`, kde patchovala starou verzi skriptu — teď se matchuje podle
+  jména konstanty). `ICAL_URL_ECHALUPY` je tím pádem povinný secret; majitel potvrdil,
+  že je nastavený. Klíč tím ale není odvolaný, jen odstraněný z HEAD — patří
+  přegenerovat, viz výš.
 
 ## Kontext
 

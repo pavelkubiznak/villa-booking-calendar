@@ -257,6 +257,7 @@
     <div class="legend-item"><div class="legend-swatch" style="background:#2980B9"></div> Booking.com</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#27AE60"></div> E-chalupy</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#F39C12"></div> Fewo-direkt</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#16A085"></div> Megaubytko</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#8E44AD"></div> Přímá</div>
     <div class="legend-item"><div class="legend-swatch" style="background:#F4ECF7;outline:1px dashed #8E44AD;outline-offset:-1px"></div> Předrezervace</div>
   </div>
@@ -340,8 +341,8 @@ const PBKDF2_ITERS = 310000;                   // OWASP-recommended floor (runs 
 // 'Přímá' = přímý prodej (předrezervace i potvrzená přímá rezervace). Nechodí
 // z žádného feedu — do history.json ji doplňuje Action ze Supabase, viz
 // update_history.py → DIRECT SALES. Fialová schválně nesousedí s barvami platforem.
-const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12', 'Přímá':'#8E44AD' };
-const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7', 'Přímá':'#F4ECF7' };
+const COL   = { 'Airbnb':'#E74C3C', 'Booking.com':'#2980B9', 'E-chalupy':'#27AE60', 'Fewo-direkt':'#F39C12', 'Megaubytko':'#16A085', 'Přímá':'#8E44AD' };
+const LIGHT = { 'Airbnb':'#FDEDEC', 'Booking.com':'#EBF5FB', 'E-chalupy':'#EAFAF1', 'Fewo-direkt':'#FEF9E7', 'Megaubytko':'#E8F8F5', 'Přímá':'#F4ECF7' };
 const RESERVATION_LABEL = 'Rezervace';   // guest names are gone — look the guest up in the platform extranet
 function platformOf(s) { return COL[s] ? s : 'E-chalupy'; }
 function is16hex(k) { return /^[0-9a-f]{16}$/.test(String(k)); }
@@ -543,11 +544,18 @@ function icsToDate(s) {
   // Hodnota v UTC (…Z) se převádí na den v Europe/Prague: pražská půlnoc je 22:00Z/23:00Z
   // předchozího dne, takže pouhé oříznutí času by posunulo pobyt o den dřív. Producent
   // (update_history.py) už takové hodnoty publikuje jako pražské DATE — tohle je pojistka.
+  // Čte se přes formatToParts(): pořadí polí ani oddělovač ve formátovaném řetězci nejsou
+  // garantované, pevné řezy by na jiném enginu daly NaN a z toho Invalid Date.
   const z = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(String(s).trim());
   if (z) {
     const utc = new Date(Date.UTC(+z[1], +z[2]-1, +z[3], +z[4], +z[5], +z[6]));
-    const p = new Intl.DateTimeFormat('en-CA', { timeZone:'Europe/Prague', year:'numeric', month:'2-digit', day:'2-digit' }).format(utc);
-    return new Date(+p.slice(0,4), +p.slice(5,7)-1, +p.slice(8,10));
+    const part = {};
+    try {
+      new Intl.DateTimeFormat('en-CA', { timeZone:'Europe/Prague', year:'numeric', month:'2-digit', day:'2-digit' })
+        .formatToParts(utc).forEach(p => { part[p.type] = p.value; });
+    } catch (_) { /* engine bez dat o časových pásmech — spadne se na řez níž */ }
+    const y = +part.year, mo = +part.month, dy = +part.day;
+    if (y && mo && dy) return new Date(y, mo-1, dy);
   }
   const d = String(s).replace(/[TZ].*/,'');
   if (d.length < 8) return null;
@@ -758,13 +766,10 @@ async function fetchAndMergeRemoteHistory() {
     // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se
     // zrušený hold musí z cache ztratit. Podezřelé je až pole, ze kterého neprošel
     // ani jeden řádek — to je změna schématu nebo poškozený soubor, ne prázdno.
-    // Použít se smí AŽ v load(), na úspěšné větvi, a to obě půlky naráz:
-    // • Mazat dřív nejde — feed i vzdálený ceník se stahují paralelně s tímhle. Kdyby
-    //   se smazalo hned a feed pak spadl, load() skočí do catch, migrace ceny neproběhne
-    //   a při dalším obnovení už nebude co stěhovat, protože záznam v cache nebude.
-    // • Přidat dřív taky ne — v cache by chvíli ležel zrušený přímý prodej i jeho
-    //   blokace z platformy, a kalendář by nad jedním pobytem vykreslil falešnou
-    //   dvojitou rezervaci.
+    // Použít se smí AŽ v load(), na úspěšné větvi, a to obě půlky naráz: přidat
+    // dřív než smazat nejde — v cache by chvíli ležel zrušený přímý prodej i blokace
+    // z platformy na tentýž termín (ta se do archivu vrátí, jakmile přímý prodej
+    // zmizí), a kalendář by nad jedním pobytem vykreslil falešnou dvojitou rezervaci.
     // Nepovedený běh se prostě zopakuje celý.
     pendingSnapshot = {
       uids: (data.length === 0 || events.length > 0) ? new Set(events.map(e => e.uid)) : null,
@@ -875,78 +880,6 @@ function pruneOrphanPrices(events) {
     Object.keys(prices).forEach(uid => { if (!valid.has(uid)) { delete prices[uid]; changed = true; } });
     if (changed) savePrices(prices);
   } catch (_) {}
-}
-
-// Přímý prodej, který si majitel zablokoval na platformě, se vrátí feedem pod JINÝM
-// uidh — původní záznam tedy ze snapshotu zmizí a srovnání cache ho smaže. Je to pořád
-// tentýž pobyt ve stejném termínu, ale cena visí na starém klíči, takže by ji
-// pruneOrphanPrices() zahodila jako osiřelou a pobyt by se tvářil jako neoceněný.
-// Cena se proto přestěhuje na náhradu se shodným (start, end) — jen pokud sama cenu
-// nemá, cizí zadanou cenu nikdy nepřepisujeme.
-// Cena nemusí být po ruce ve chvíli, kdy záznam mizí: může ležet jen ve vzdáleném
-// prices.json (druhé zařízení, vymazané úložiště) a ten se stahuje paralelně. Když se
-// nepovede, dorazí až příští běh — jenže to už tu původní záznam nebude. Nedokončené
-// stěhování se proto zapamatuje a dokončí se, jakmile cena dorazí.
-// Zastavit kvůli tomu celé srovnání cache by bylo horší: trvale nečitelný prices.json
-// (poškozený soubor) by ho zablokoval napořád a propadlé holdy by se vrátily.
-const PRICE_HEIRS_KEY = 'villa_cal_price_heirs_v1';
-const PRICE_HEIR_TTL  = 90 * 86400000;        // po 90 dnech to čekání nemá smysl
-function loadPriceHeirs() {
-  try { const r = localStorage.getItem(PRICE_HEIRS_KEY); return r ? JSON.parse(r) : {}; } catch (_) { return {}; }
-}
-function savePriceHeirs(h) {
-  try { localStorage.setItem(PRICE_HEIRS_KEY, JSON.stringify(h)); } catch (_) {}
-}
-
-function migrateDirectSalePrices(removed, events) {
-  const prices = loadPrices();
-  const heirs  = loadPriceHeirs();
-  const now = Date.now();
-  let moved = 0, heirsChanged = false;
-
-  // cenu nikdy nepřepisujeme — když si dědic mezitím nějakou pořídil, stará se zahodí
-  const move = (from, to) => {
-    const p = prices[from];
-    if (!p) return;
-    if (!prices[to]) { prices[to] = { amount: p.amount, currency: p.currency, mtime: Date.now() }; moved++; }
-    delete prices[from];
-  };
-
-  // Dědic je JEN živá událost z feedu — ta blokace, kvůli které přímý prodej ze snapshotu
-  // vypadl. Archivní záznam (`stale`) je duch, kalendář ho skrývá a cena na něm by byla
-  // ztracená stejně; jiný přímý prodej (`kind`) náhrada není.
-  const liveHeir = (startTs, endTs, exceptUid) => events.find(e => e.uid !== exceptUid && !e.stale && !e.kind
-                                  && +e.start === startTs && +e.end === endTs && !prices[e.uid]);
-
-  // 1) dluhy z minulých běhů — cena mohla dorazit až teď, ze vzdáleného ceníku
-  Object.keys(heirs).forEach(from => {
-    const h = heirs[from];
-    if (!h || !h.to || now - (h.ts || 0) > PRICE_HEIR_TTL) { delete heirs[from]; heirsChanged = true; return; }
-    if (!prices[from]) return;                    // cena pořád nedorazila, čeká se dál
-    // Zapsaný dědic mezitím mohl být zrušen nebo přeuložen pod jiným uidh. Cena na
-    // mrtvém záznamu je ztracená, takže se dědic ověřuje znovu — a když neplatí,
-    // hledá se živá náhrada na tentýž termín.
-    // Termín se musí shodovat i u zapsaného dědice: pod stejným uidh mohl mezitím
-    // vzniknout přeplánovaný pobyt a cena patří tomu původnímu termínu, ne jemu.
-    const still = events.find(e => e.uid === h.to && !e.stale && !e.kind && !prices[e.uid]
-                                   && +e.start === h.startTs && +e.end === h.endTs);
-    const heir  = still || liveHeir(h.startTs, h.endTs, from);
-    if (heir) move(from, heir.uid);
-    delete heirs[from]; heirsChanged = true;
-  });
-
-  // 2) co právě zmizelo ze snapshotu
-  (removed || []).forEach(h => {
-    const heir = liveHeir(h.startTs, h.endTs, h.uid);
-    if (!heir) return;
-    if (prices[h.uid]) move(h.uid, heir.uid);
-    // dokončí se, až cena dorazí; termín se pamatuje, ať jde dědic ověřit znovu
-    else { heirs[h.uid] = { to: heir.uid, startTs: h.startTs, endTs: h.endTs, ts: now }; heirsChanged = true; }
-  });
-
-  if (moved) savePrices(prices);
-  if (heirsChanged) savePriceHeirs(heirs);
-  return moved;
 }
 
 // price of a booking converted to CZK (null if no price set)
@@ -1147,7 +1080,7 @@ function renderKPIs(bookings) {
 function renderBreakdown(k) {
   // 'Přímá' sem patří stejně jako feedové kanály — computeKPIs() ji do součtu
   // počítá, takže bez ní by přímé tržby byly v hlavičce a v rozpadu ne.
-  const order = ['Airbnb','Booking.com','E-chalupy','Fewo-direkt','Přímá'];
+  const order = ['Airbnb','Booking.com','E-chalupy','Fewo-direkt','Megaubytko','Přímá'];
   const rows = order.filter(p => k.byPlat[p]);
   const max = Math.max(1, ...rows.map(p => k.byPlat[p].revenue));
   const wrap = document.getElementById('bd-rows');
@@ -1476,17 +1409,15 @@ async function load(forceRefresh) {
     ]);
     saveCache(text);
     // Teprve tady je jisté, že dorazil feed. Snapshot se aplikuje celý, nebo vůbec:
-    // smazat zrušený přímý prodej a přidat jeho náhradu patří k sobě.
-    let goneDirect = [], appliedHist = 0;
+    // smazat zrušený přímý prodej a přidat, co je v archivu místo něj, patří k sobě.
+    let appliedHist = 0;
     if (pendingSnapshot && pendingSnapshot.uids) {
-      goneDirect = dropVanishedDirectSales(pendingSnapshot.uids);
+      dropVanishedDirectSales(pendingSnapshot.uids);
       if (pendingSnapshot.events.length) mergeHistory(pendingSnapshot.events);
       appliedHist = pendingSnapshot.events.length;
     }
     pendingSnapshot = null;
     lastBookings = mergeHistory(parseICS(text));
-    // MUSÍ být před prune: co se smazalo, předá cenu své náhradě.
-    migrateDirectSalePrices(goneDirect, lastBookings);
     pruneOrphanPrices(lastBookings);   // safe here: history is fully loaded (iCal + remote)
     renderCalendar(lastBookings);
     const now = new Date();

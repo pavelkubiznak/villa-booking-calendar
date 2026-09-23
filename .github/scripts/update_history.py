@@ -64,7 +64,7 @@ MODES (chosen automatically, so nothing changes until the secrets exist):
                 as a second, conflicting stay under the reading channel's name.
 
 Feed URLs come from the environment (they are private keys — never commit them):
-    ICAL_URL_AIRBNB · ICAL_URL_BOOKING · ICAL_URL_FEWO · ICAL_URL_ECHALUPY
+    ICAL_URL_AIRBNB · ICAL_URL_BOOKING · ICAL_URL_FEWO · ICAL_URL_MEGAUBYTKO · ICAL_URL_ECHALUPY
 
 --------------------------------------------------------------------------------
 OWN-BOOKING FILTER — the part that must not silently eat a real reservation
@@ -127,9 +127,13 @@ special case downstream.
 
 Three rules keep this from causing the noise the calendar was just cleaned of:
 
-  * A hold whose dates are IDENTICAL to a live feed event is not published. That is the
-    owner having blocked the same term on a platform — one stay, not two, and emitting
-    both would render a red double booking.
+  * A live feed event whose dates are IDENTICAL to a direct sale is dropped (from the
+    archive AND from feed.ics). That is the same term blocked on a platform — by the
+    owner, or by the platform importing our own data/out/*.ics and the hub echoing it
+    back. One stay, not two, and the /sprava/ record is the one that carries `kind`.
+    (Until 2026-09-17 it was the other way round: the hold was dropped. Once the
+    outbound feeds went live every direct sale came back as an anonymous E-chalupy
+    booking and lost its pre-booking look.)
   * Holds never go stale. They are absent from every feed by definition; expiry is the
     database's job (`vr_public_holds()` simply stops returning an expired hold, so the
     term frees itself with no cron anywhere).
@@ -141,7 +145,31 @@ They are deliberately NOT written into feed.ics. That file is the sanitized mirr
 what the platforms say; publishing our own bookings outward is a separate step (see
 "Cíl dál" in CLAUDE.md), and mixing the two would make it impossible to tell which is
 which.
-=======
+OUTBOUND FEEDS (2026-09-17)
+================================================================================
+The goal is for THIS calendar to be the source of truth and for every platform to
+mirror it, instead of e-chalupy playing hub. A platform's calendar cannot be written
+to — but every platform can IMPORT an iCal and block the dates in it. So each run also
+writes data/out/<platform>.ics: everything occupied EXCEPT that platform's own
+reservations (sending those back would keep a cancelled stay blocked on its own
+platform, and invites a mirror loop).
+
+  * Source = this run's live feed events + direct sales. NOT the archive: the archive
+    keeps a vanished stay "live" for STALE_AFTER_DAYS, and a cancelled Booking stay
+    must not block Airbnb for two more days. A failed feed aborts the run before
+    anything is written, so the previous files simply stay in place.
+  * A direct sale is ALWAYS in every outbound feed — even when apply_holds() did not
+    publish it because a platform already shows the same dates. Once Booking imports
+    our block and (if it re-exports it) reports those nights itself, the hold would
+    drop out, Booking would unblock, the hold would come back... the block must not
+    depend on its own echo.
+  * HUB MODE publishes direct sales ONLY. The hub already cross-syncs the platforms'
+    own reservations; feeding them back into e-chalupy would return them under fresh
+    e-chalupy UIDs — a second live event over the same nights, i.e. a false red double
+    booking. Full content starts with MULTI MODE.
+  * Dates only. SUMMARY is a constant, UID is the uidh. All-day events, DTEND = the
+    checkout day (exclusive), so the turnover day stays bookable.
+
 Only LIVE archived entries are eligible. A `stale` entry is a stay the feed stopped
 listing (cancelled, expired hold, edited away); a different guest booking the very same
 nights on the same platform must NOT inherit its uidh, or /sprava/ would glue the old
@@ -166,19 +194,26 @@ FEED_FILE    = 'data/feed.ics'
 
 # 'Přímá' = přímý prodej (předrezervace i potvrzená přímá rezervace). Nepochází z
 # žádného feedu, chodí z Supabase — viz DIRECT SALES v hlavičce.
-PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt', 'Přímá')
+PLATFORMS = ('Airbnb', 'Booking.com', 'E-chalupy', 'Fewo-direkt', 'Megaubytko', 'Přímá')
 
 HOLD_PLATFORM = 'Přímá'
 HOLD_KINDS    = ('hold', 'direct')
 
+# Outbound feeds the platforms import — see OUTBOUND FEEDS in the header. File name →
+# the platform whose own reservations are left out of that file.
+OUT_DIR   = 'data/out'
+OUT_FEEDS = (
+    ('airbnb.ics',    'Airbnb'),
+    ('booking.ics',   'Booking.com'),
+    ('fewo.ics',      'Fewo-direkt'),
+    ('megaubytko.ics', 'Megaubytko'),
+    ('echalupy.ics',  'E-chalupy'),
+)
+OUT_SUMMARY = 'Villa Rudolf - obsazeno'
+
 # The Action runs every ~3 h. Two days of grace means a transient outage (or a few
 # failed runs in a row) never flips a live booking to "stale" by accident.
 STALE_AFTER_DAYS = 2
-
-# Legacy hub URL. It lived in this (public) repo before the feeds moved to secrets, so
-# it is already burned — kept ONLY as a fallback so the Action keeps running until
-# ICAL_URL_ECHALUPY is set. Set that secret and this constant stops being used.
-LEGACY_HUB_URL = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'
 
 # Direct sales come from the /sprava/ database, not from a feed. The anon key below is
 # the PUBLIC Supabase anon key (it is already published on villarudolf.com and in the
@@ -192,11 +227,15 @@ HOLDS_ANON_DEFAULT = (
     '.goat1c7Y1YnpTq7_XyMD3LROElkVI6E27f0B3EG8btA')
 
 # Feed roster. `env` holds the URL; the channel name IS the platform in MULTI MODE.
+# There is deliberately NO hardcoded fallback: a feed URL carries a private key and
+# this repo is public. An unset secret means the feed is skipped, and with no feed at
+# all the run aborts without touching the archive (see main()).
 FEEDS = (
     {'channel': 'Airbnb',      'env': 'ICAL_URL_AIRBNB'},
     {'channel': 'Booking.com', 'env': 'ICAL_URL_BOOKING'},
     {'channel': 'Fewo-direkt', 'env': 'ICAL_URL_FEWO'},
-    {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY', 'fallback': LEGACY_HUB_URL},
+    {'channel': 'Megaubytko',  'env': 'ICAL_URL_MEGAUBYTKO'},
+    {'channel': 'E-chalupy',   'env': 'ICAL_URL_ECHALUPY'},
 )
 
 # Airbnb writes this SUMMARY for every blocked (not booked) day and the hub mirrors it
@@ -211,6 +250,7 @@ BLOCK_SUMMARIES = {
     # so no SUMMARY-based rule may be applied to them — UID origin is the only signal.
     'Booking.com': (),
     'Fewo-direkt': (),
+    'Megaubytko': (),
     'E-chalupy': (),
 }
 
@@ -286,6 +326,11 @@ def implied_dtend(dtstart, duration):
 
 def uid_channel(uid):
     """Which system minted this UID. Same rules the hub feed has always used."""
+    # Megaubytko.cz (2026-09-17): its real feed has not been seen yet — the e-chalupy hub
+    # imports it, that is all we know. ASSUMPTION: its UIDs name the domain. If they do
+    # not, the first MULTI dry-run shows its events filtered as someone else's and this
+    # rule gets fixed then; until that feed is configured nothing changes anywhere.
+    if 'megaubytko' in uid.lower(): return 'Megaubytko'
     if '@airbnb.com'   in uid: return 'Airbnb'
     if '@booking.com'  in uid: return 'Booking.com'
     if '@'         not in uid: return 'Fewo-direkt'
@@ -393,25 +438,37 @@ def collapse_cross_feed_duplicates(events):
     channel's feed wins; failing that the hub's copy (its UID is what the archive and
     /sprava/ have been keyed on all along); failing that the first one read.
 
-    Same-feed duplicates are left alone: those are a real same-platform clash and
-    report_overlaps() must see them — also inside a collapsed group, where every event
-    of the winning feed survives and only the other feeds' copies go."""
+    ONLY the clean mirror shape is collapsed: every feed in the group contributes
+    exactly ONE event. The moment any feed reports those same nights TWICE, that feed has
+    a genuine same-platform clash, and which of its rows the other feed mirrors is not
+    knowable — so the whole group is kept and report_overlaps() gets to shout. A red
+    alert there is the correct answer; losing a real booking to a heuristic is the one
+    outcome this function must never produce (Codex na #12: dřív rozhodovalo, který feed
+    se čte první, takže kolize v „nevítězném" feedu zmizela).
+
+    Returns (kept, collapsed, kept_clashes)."""
     by_span = {}
     for e in events:
         by_span.setdefault((e['start'], e['end']), []).append(e)
-    kept, collapsed = [], []
+    kept, collapsed, kept_clashes = [], [], []
     for span, group in by_span.items():
-        if len(group) < 2 or len({e['feed_ch'] for e in group}) < 2:
+        per_feed = {}
+        for e in group:
+            per_feed[e['feed_ch']] = per_feed.get(e['feed_ch'], 0) + 1
+        if len(group) < 2 or len(per_feed) < 2:
             kept.extend(group)
+            continue
+        if max(per_feed.values()) > 1:
+            # A feed booked the same nights twice: a real clash inside that channel.
+            # Nothing here is a safely identifiable mirror, so nothing is dropped.
+            kept.extend(group)
+            kept_clashes.append((span, sorted(per_feed)))
             continue
         owner = (next((e for e in group if e['uid_ch'] == e['feed_ch']), None)
                  or next((e for e in group if e['feed_ch'] == 'E-chalupy'), group[0]))
-        # Only the copies from OTHER feeds are mirrors. Everything the winning feed
-        # itself holds on this span stays — two bookings on the same nights in one feed
-        # are a real same-platform clash and report_overlaps() must still see both.
-        kept.extend(e for e in group if e['feed_ch'] == owner['feed_ch'])
+        kept.append(owner)
         collapsed.append((span, [e['feed_ch'] for e in group], owner['platform']))
-    return kept, collapsed
+    return kept, collapsed, kept_clashes
 
 
 def build_feed(events, rfc_dates=False):
@@ -442,6 +499,58 @@ def build_feed(events, rfc_dates=False):
         lines.append('UID:'     + e['uidh'])
         lines.append('STATUS:CONFIRMED')
         lines.append('END:VEVENT')
+    lines.append('END:VCALENDAR')
+    return '\r\n'.join(lines) + '\r\n'
+
+
+def out_entries(events, holds, history, multi, today_s):
+    """What is occupied from today on, as {uidh, start, end, platform, firstSeen}.
+
+    `holds` is this run's validated direct sales, or None when the database was not
+    read — then the direct sales already in the archive stand in for them (the same
+    "leave it blocked" direction apply_holds() takes)."""
+    if holds is None:
+        holds = [e for e in history.values() if e.get('kind') in HOLD_KINDS]
+    rows = [dict(h, platform=HOLD_PLATFORM) for h in holds]
+    if multi:
+        rows += events
+    out = {}
+    for r in rows:
+        if r['end'] <= today_s:                 # checkout today blocks no night
+            continue
+        out[r['uidh']] = {
+            'uidh': r['uidh'], 'start': r['start'], 'end': r['end'],
+            'platform': r['platform'],
+            'firstSeen': history.get(r['uidh'], {}).get('firstSeen') or today_s,
+        }
+    return list(out.values())
+
+
+def build_out_feed(entries, exclude_platform):
+    """One outbound iCal: every entry except `exclude_platform`'s own. DTSTAMP is the
+    entry's firstSeen, not "now" — a file that changes every run would be a commit
+    every three hours for nothing."""
+    lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//villa-rudolf//availability//CZ',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+    ]
+    for e in sorted(entries, key=lambda x: (x['start'], x['uidh'])):
+        if e['platform'] == exclude_platform:
+            continue
+        lines += [
+            'BEGIN:VEVENT',
+            'DTSTART;VALUE=DATE:' + e['start'].replace('-', ''),
+            'DTEND;VALUE=DATE:'   + e['end'].replace('-', ''),
+            'DTSTAMP:' + e['firstSeen'].replace('-', '') + 'T000000Z',
+            'SUMMARY:' + OUT_SUMMARY,
+            'UID:' + e['uidh'] + '@villarudolf.com',
+            'STATUS:CONFIRMED',
+            'TRANSP:OPAQUE',
+            'END:VEVENT',
+        ]
     lines.append('END:VCALENDAR')
     return '\r\n'.join(lines) + '\r\n'
 
@@ -738,7 +847,7 @@ def resolve_feeds(fixtures=None):
             if os.path.exists(path):
                 out.append({'channel': f['channel'], 'path': path})
             continue
-        url = os.environ.get(f['env'], '').strip() or f.get('fallback', '')
+        url = os.environ.get(f['env'], '').strip()
         if url:
             out.append({'channel': f['channel'], 'url': url})
     return out
@@ -858,17 +967,47 @@ def main():
         sys.exit(1)
 
     if multi:
-        events, collapsed = collapse_cross_feed_duplicates(events)
+        events, collapsed, kept_clashes = collapse_cross_feed_duplicates(events)
         for span, feeds_, winner in collapsed:
             print(f'::warning::same nights {span[0]}→{span[1]} came from the '
                   f'{" + ".join(feeds_)} feeds — kept {winner}, treated the rest as a mirror. '
                   f'If these are genuinely two different stays, it is a DOUBLE BOOKING.')
+        for span, feeds_ in kept_clashes:
+            print(f'::warning::same nights {span[0]}→{span[1]} appear MORE THAN ONCE in one '
+                  f'feed ({" + ".join(feeds_)}) — nothing collapsed, every booking kept. '
+                  f'Expect a double booking below; check the platforms.')
 
     print(f'Parsed {len(events)} real booking events')
 
     now   = datetime.now()
     today = datetime(now.year, now.month, now.day)
     today_s = today.strftime('%Y-%m-%d')
+
+    # Přímý prodej (předrezervace + potvrzené přímé rezervace) ze Supabase. PŘED zápisem
+    # feedu i archivu: událost z feedu se stejnými nocemi jako přímý prodej je ozvěna
+    # našeho vlastního bloku (platforma importuje data/out/*.ics a hub ho vrací jako
+    # „svou" rezervaci) nebo blok, který si majitel udělal ručně. Jeden pobyt, ne dva —
+    # a platí záznam ze správy: nese `kind`, vzhled předrezervace a vazbu na /sprava/.
+    holds_raw = fetch_holds(fixtures)
+    holds, holds_complete = (None, True) if holds_raw is None else valid_holds(holds_raw)
+    # Co drží termín: odpověď databáze, a když nepřišla nebo je neúplná, i přímý prodej,
+    # který už je v archivu. apply_holds() ho v obou případech nechá stát — musí se tedy
+    # stejně počítat i tady (jinak by jeho ozvěna z platformy prošla jako druhý pobyt)
+    # a ve výstupních feedech (jinak by se termín na platformách uvolnil).
+    archived_holds = [e for e in history.values() if e.get('kind') in HOLD_KINDS]
+    if holds is None:
+        known = archived_holds
+    elif holds_complete:
+        known = holds
+    else:
+        got = {h['uidh'] for h in holds}
+        known = holds + [e for e in archived_holds if e['uidh'] not in got]
+    hold_spans = {(h['start'], h['end']) for h in known}
+    echoes = [e for e in events if (e['start'], e['end']) in hold_spans]
+    events = [e for e in events if (e['start'], e['end']) not in hold_spans]
+    for e in echoes:
+        print(f"  direct: {e['start']}→{e['end']} from the {e['feed_ch']} feed dropped — "
+              f"same nights as a direct sale (echo of our own block)")
 
     adopted, refused = adopt_existing_uidh(events, history, today)
     for old, new, s, e_, p in adopted:
@@ -898,12 +1037,14 @@ def main():
         }
     print(f'New: {new}, total: {len(history)}')
 
-    # Přímý prodej (předrezervace + potvrzené přímé rezervace) ze Supabase. Až ZA
-    # feedy, aby se dalo poznat, který termín je zároveň zablokovaný na platformě.
-    holds_raw = fetch_holds(fixtures)
-    holds, holds_complete = (None, True) if holds_raw is None else valid_holds(holds_raw)
     for line in apply_holds(history, holds, events, today_s, prune_missing=holds_complete):
         print('  direct: ' + line)
+
+    # Outbound feeds — from THIS run's events and direct sales (`known`: archived direct
+    # sales stand in only where the database did not answer in full).
+    outbound = out_entries(events, known, history, multi, today_s)
+    print(f'Outbound feeds: {len(outbound)} occupied term(s)'
+          + ('' if multi else ' (hub mode — direct sales only)'))
 
     # Prune older than 18 months
     m, y = now.month - 18, now.year
@@ -933,6 +1074,12 @@ def main():
 
     with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
+
+    os.makedirs(OUT_DIR, exist_ok=True)
+    for name, platform in OUT_FEEDS:
+        with open(os.path.join(OUT_DIR, name), 'w', encoding='utf-8', newline='') as f:
+            f.write(build_out_feed(outbound, platform))
+    print(f'Outbound feeds written to {OUT_DIR}/ ({", ".join(n for n, _ in OUT_FEEDS)})')
 
     stale_n = sum(1 for e in output if e['stale'])
     print(f'Written {len(output)} entries to {HISTORY_FILE} '

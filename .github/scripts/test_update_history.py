@@ -19,7 +19,7 @@ so fixed dates would drift out of report_overlaps() and the 18-month prune and s
 failing on their own — and a failing test blocks the data update in the workflow.
 """
 
-import contextlib, importlib.util, io, json, os, shutil, subprocess, sys, tempfile
+import contextlib, importlib.util, io, json, os, re, shutil, subprocess, sys, tempfile
 from datetime import datetime, timedelta
 
 HERE     = os.path.dirname(os.path.abspath(__file__))
@@ -160,10 +160,12 @@ def test_hub_mode_unchanged():
         f.write(HUB)
 
     # Point the old script at the fixture via file:// (urlopen speaks it natively).
+    # Matched by CONSTANT NAME, not by the old URL literal: that URL carries the feed
+    # key and this repo is public, so it must not be pasted back in here just to make
+    # a test pass. `count=1` keeps the rewrite to the definition line.
     old_path = os.path.join(os.path.dirname(feed_path), 'old_update_history.py')
-    patched = old_src.replace(
-        "ICAL_URL     = 'https://www.e-chalupy.cz/api/calendar/18852/6C517e26581B794/default.ics'",
-        f"ICAL_URL     = 'file://{feed_path}'")
+    patched = re.sub(r"(?m)^ICAL_URL\s*=\s*.*$",
+                     f"ICAL_URL = 'file://{feed_path}'", old_src, count=1)
     with open(old_path, 'w', encoding='utf-8') as f:
         f.write(patched)
     check('previous script patched to read the fixture', 'file://' in patched)
@@ -309,10 +311,33 @@ def test_same_feed_clash_survives_collapse():
     hist = json.loads(read(cwd, 'history.json') or '[]')
     air = [e for e in hist if e['platform'] == 'Airbnb']
     check('both Airbnb bookings kept', len(air) == 2, str(hist))
-    check('the Booking mirror collapsed', not any(e['platform'] == 'Booking.com' for e in hist), str(hist))
-    check('collapse logged', 'same nights' in r.stdout, r.stdout[-400:])
+    # Která z těch dvou je zrcadlem té z Bookingu, se poznat nedá — nic se proto nezahodí.
+    check('nothing collapsed when one feed holds the same nights twice', len(hist) == 3, str(hist))
+    check('and the log says why', 'MORE THAN ONCE in one feed' in r.stdout, r.stdout[-600:])
     check('the same-feed clash is reported as a REAL double booking',
           'REAL double booking' in r.stdout, r.stdout[-600:])
+
+
+def test_clash_in_non_owner_feed_survives():
+    print('\nMULTI MODE — kolize ve feedu, který NENÍ vlastníkem termínu, se taky nesmí ztratit (Codex na #12)')
+    d_ = tempfile.mkdtemp(prefix='vr-clash2-')
+    w = lambda n, c: open(os.path.join(d_, n), 'w', encoding='utf-8').write(c)
+    # Airbnb feed: jeden vlastní pobyt. Booking feed: DVA vlastní na stejných nocích.
+    # Dřív rozhodlo pořadí čtení — vyhrál Airbnb a obě rezervace z Bookingu zmizely.
+    w('Airbnb.ics', calendar(vevent('a1@airbnb.com', 'Reserved', d(0), d(4))))
+    w('Booking.com.ics', calendar(
+        vevent('b1@booking.com', 'CLOSED - Not available', d(0), d(4)),
+        vevent('b2@booking.com', 'CLOSED - Not available', d(0), d(4)),
+    ))
+    cwd = workdir()
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    hist = json.loads(read(cwd, 'history.json') or '[]')
+    check('both Booking bookings kept',
+          sum(1 for e in hist if e['platform'] == 'Booking.com') == 2, str(hist))
+    check('and the Airbnb stay too', any(e['platform'] == 'Airbnb' for e in hist), str(hist))
+    check('nothing was collapsed', 'treated the rest as a mirror' not in r.stdout, r.stdout[-600:])
+    check('a double booking is reported', 'REAL double booking' in r.stdout, r.stdout[-600:])
 
 
 def test_uidh_continuity():
@@ -552,8 +577,12 @@ def test_direct_sales():
     check('nese holdUntil', hold.get('holdUntil') == '2026-10-01', str(hold.get('holdUntil')))
     check('není duch', hold.get('stale') is False, str(hold.get('stale')))
 
-    check('termín krytý blokem z platformy se nepublikuje', '1111111111111111' not in by)
-    check('a je to vidět v logu', 'already blocked on a platform' in r.stdout)
+    check('termín krytý blokem z platformy: platí záznam ze správy', '1111111111111111' in by
+          and by['1111111111111111'].get('kind') == 'direct')
+    check('a blok z platformy (ozvěna) je pryč z archivu i z feed.ics',
+          sum(1 for e in hist if e['start'] == '2027-08-14') == 1
+          and '20270814' not in (read(cwd, 'feed.ics') or ''))
+    check('a je to vidět v logu', 'echo of our own block' in r.stdout)
     check('rozbitý uidh neprojde', 'malformed uidh' in r.stdout)
     check('řádek, co není objekt, jen vypadne', 'not an object' in r.stdout)
 
@@ -648,6 +677,135 @@ def test_direct_sales_expiry_frees_the_term():
     check('a nezůstal po něm duch', all(e.get('platform') != 'Přímá' for e in by.values()))
 
 
+def out(cwd, name):
+    """Outbound feed, byte-exact (read() would fold CRLF into LF)."""
+    p = os.path.join(cwd, 'data', 'out', name)
+    if not os.path.exists(p):
+        return None
+    with open(p, encoding='utf-8', newline='') as f:
+        return f.read()
+
+
+def test_outbound_feeds_multi():
+    """Výstupní feedy — to, co si platformy importují, aby zrcadlily NÁŠ kalendář."""
+    print('\nVÝSTUPNÍ FEEDY — multi mode')
+    PAST = d(-65)                       # pobyt, který končí DNES (BASE je dnešek + 60)
+    d_ = tempfile.mkdtemp(prefix='vr-out-')
+    for ch, ev in (('Airbnb',      vevent('a1@airbnb.com', 'Reserved', d(10), d(14))),
+                   ('Booking.com', vevent('b1@booking.com', 'CLOSED - Not available', d(20), d(24))
+                                 + vevent('b0@booking.com', 'CLOSED - Not available', PAST, d(-60)))):
+        open(os.path.join(d_, ch + '.ics'), 'w', encoding='utf-8').write(calendar(ev))
+    json.dump([{'uidh': '2222222222222222', 'start': iso(30), 'end': iso(37),
+                'kind': 'hold', 'holdUntil': iso(5)}], open(os.path.join(d_, 'holds.json'), 'w'))
+    # duch v archivu: budoucí pobyt, který z feedu dávno vypadl
+    seed = [{'uidh': 'dddddddddddddddd', 'start': iso(40), 'end': iso(44), 'platform': 'Airbnb',
+             'firstSeen': ago(30), 'lastSeen': ago(20), 'stale': True},
+            # včera ještě ve feedu, dnes ne (storno) — v archivu je pořád „živý"
+            {'uidh': 'cccccccccccccccc', 'start': iso(50), 'end': iso(54), 'platform': 'Booking.com',
+             'firstSeen': ago(30), 'lastSeen': ago(1), 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    air, boo, fewo, ech = (out(cwd, n) or '' for n in ('airbnb.ics', 'booking.ics', 'fewo.ics', 'echalupy.ics'))
+    A, B, H = d(10), d(20), iso(30).replace('-', '')
+    check('všechny čtyři soubory vznikly', all((air, boo, fewo, ech)))
+    check('Airbnb nedostane vlastní rezervaci zpátky', f':{A}' not in air)
+    check('Airbnb dostane rezervaci z Bookingu', f'DTSTART;VALUE=DATE:{B}\r\n' in air)
+    check('Booking nedostane vlastní, dostane Airbnb', f':{B}' not in boo and f':{A}' in boo)
+    check('FeWo a e-chalupy dostanou obojí', all(f':{A}' in x and f':{B}' in x for x in (fewo, ech)))
+    check('předrezervace je ve všech čtyřech', all(f':{H}' in x for x in (air, boo, fewo, ech)))
+    check('proběhlý pobyt (odjezd dnes) se neposílá', f':{PAST}' not in fewo)
+    check('duch z archivu se neposílá', 'dddddddddddddddd' not in fewo)
+    check('čerstvé storno neblokuje ostatní platformy', 'cccccccccccccccc' not in fewo)
+    check('DTEND je den odjezdu (exkluzivní)', f'DTEND;VALUE=DATE:{d(24)}\r\n' in air)
+    check('žádná jména ani platformy ven', 'Reserved' not in fewo and 'Booking' not in fewo
+          and 'SUMMARY:Villa Rudolf - obsazeno' in fewo)
+    check('platný iCal s CRLF', fewo.startswith('BEGIN:VCALENDAR\r\n') and fewo.endswith('END:VCALENDAR\r\n')
+          and '\n' not in fewo.replace('\r\n', ''))
+    r2 = run(cwd, '--fixtures', d_)
+    check('druhý běh nic nezmění (žádné zbytečné commity)',
+          r2.returncode == 0 and (out(cwd, 'fewo.ics'), out(cwd, 'airbnb.ics')) == (fewo, air))
+
+
+def test_megaubytko_channel():
+    """Pátý kanál. Skutečný feed Megaubytka zatím nikdo neviděl — tohle hlídá jen to, že
+    kanál projde celou rourou, POKUD jeho UID nese doménu (předpoklad v uid_channel)."""
+    print('\nMEGAUBYTKO — pátý kanál')
+    d_ = tempfile.mkdtemp(prefix='vr-mega-')
+    for ch, ev in (('Airbnb',     vevent('a1@airbnb.com', 'Reserved', d(10), d(14))),
+                   ('Megaubytko', vevent('res-77@megaubytko.cz', 'Rezervace', d(20), d(24)))):
+        open(os.path.join(d_, ch + '.ics'), 'w', encoding='utf-8').write(calendar(ev))
+    json.dump([], open(os.path.join(d_, 'holds.json'), 'w'))
+    cwd = workdir()
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    plats = sorted(e['platform'] for e in json.loads(read(cwd, 'history.json')))
+    check('rezervace je v archivu jako Megaubytko', plats == ['Airbnb', 'Megaubytko'], str(plats))
+    mega, air = out(cwd, 'megaubytko.ics') or '', out(cwd, 'airbnb.ics') or ''
+    check('megaubytko.ics: bez vlastní, s Airbnb', f':{d(20)}' not in mega and f':{d(10)}' in mega)
+    check('airbnb.ics dostane rezervaci z Megaubytka', f':{d(20)}' in air)
+
+
+def test_outbound_feeds_hub_mode():
+    """V hub módu ven jen přímý prodej — zbytek si hub zrcadlí sám a vrátil by se jako
+    druhá živá událost přes stejné noci."""
+    print('\nVÝSTUPNÍ FEEDY — hub mode')
+    d_ = tempfile.mkdtemp(prefix='vr-out-hub-')
+    open(os.path.join(d_, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('a1@airbnb.com', 'Reserved', d(10), d(14)),
+        # ozvěna našeho bloku: e-chalupy hlásí stejné noci jako přímá rezervace
+        vevent('booking-7@e-chalupy.cz', 'Rezervace', d(30), d(37))))
+    json.dump([{'uidh': '1111111111111111', 'start': iso(30), 'end': iso(37),
+                'kind': 'direct', 'holdUntil': None}], open(os.path.join(d_, 'holds.json'), 'w'))
+    cwd = workdir()
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    air = out(cwd, 'airbnb.ics') or ''
+    check('rezervace z hubu se ven neposílají', f':{d(10)}' not in (out(cwd, 'booking.ics') or 'x:' + d(10)))
+    check('přímý prodej ano', '1111111111111111@villarudolf.com' in air)
+    hist = json.loads(read(cwd, 'history.json'))
+    check('ozvěna z hubu přímý prodej nepřebije (zůstane Přímá, jednou)',
+          'echo of our own block' in r.stdout
+          and [e['platform'] for e in hist if e['start'] == iso(30)] == ['Přímá'])
+    check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout)
+
+    # výpadek databáze: blok musí zůstat
+    os.remove(os.path.join(d_, 'holds.json'))
+    seed = [{'uidh': '2222222222222222', 'start': iso(60), 'end': iso(67), 'platform': 'Přímá',
+             'kind': 'hold', 'holdUntil': iso(5), 'firstSeen': ago(3), 'lastSeen': ago(1), 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d_)
+    check('výpadek databáze blok nepustí', r.returncode == 0
+          and '2222222222222222@villarudolf.com' in (out(cwd, 'airbnb.ics') or ''))
+
+
+def test_outbound_feeds_partial_snapshot():
+    """Neúplná odpověď databáze: přímý prodej, který v ní chyběl a zůstal v archivu, se
+    musí počítat i do filtru ozvěn a do výstupních feedů — ne jen do archivu."""
+    print('\nVÝSTUPNÍ FEEDY — neúplná odpověď databáze')
+    d_ = tempfile.mkdtemp(prefix='vr-out-partial-')
+    open(os.path.join(d_, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('a1@airbnb.com', 'Reserved', d(10), d(14)),
+        # ozvěna našeho bloku pro 2222…, který v odpovědi chybí (rozbitý řádek)
+        vevent('booking-7@e-chalupy.cz', 'Rezervace', d(60), d(67))))
+    json.dump([{'uidh': '3333333333333333', 'start': iso(30), 'end': iso(37),
+                'kind': 'hold', 'holdUntil': iso(5)},
+               {'uidh': 'nonsense', 'start': iso(60), 'end': iso(67), 'kind': 'hold'}],
+              open(os.path.join(d_, 'holds.json'), 'w'))
+    seed = [{'uidh': '2222222222222222', 'start': iso(60), 'end': iso(67), 'platform': 'Přímá',
+             'kind': 'hold', 'holdUntil': iso(5), 'firstSeen': ago(3), 'lastSeen': ago(1), 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    air = out(cwd, 'airbnb.ics') or ''
+    check('ponechaný přímý prodej blokuje dál', '2222222222222222@villarudolf.com' in air)
+    check('i ten z odpovědi', '3333333333333333@villarudolf.com' in air)
+    hist = json.loads(read(cwd, 'history.json'))
+    check('jeho ozvěna se zahodila (zůstane Přímá, jednou)',
+          [e['platform'] for e in hist if e['start'] == iso(60)] == ['Přímá'],
+          str([(e['platform'], e['uidh']) for e in hist if e['start'] == iso(60)]))
+    check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout)
+
 def test_dry_run_writes_nothing():
     print('\n--dry-run')
     d_ = multi_fixtures()
@@ -657,6 +815,7 @@ def test_dry_run_writes_nothing():
     check('ran', r.returncode == 0, r.stderr.strip()[:200])
     check('nothing written', read(cwd, 'history.json') == before)
     check('no feed.ics created', read(cwd, 'feed.ics') is None)
+    check('no outbound feeds created', not os.path.exists(os.path.join(cwd, 'data', 'out')))
     check('still reports what it would do', 'DRY RUN' in r.stdout)
 
 
@@ -666,6 +825,7 @@ if __name__ == '__main__':
     test_partial_multi_mode()
     test_real_double_booking_survives()
     test_same_feed_clash_survives_collapse()
+    test_clash_in_non_owner_feed_survives()
     test_uidh_continuity()
     test_stale_archive_never_adopted()
     test_failed_feed_aborts()
@@ -677,6 +837,10 @@ if __name__ == '__main__':
     test_direct_sales_all_rows_broken()
     test_direct_sales_partial_snapshot_keeps_the_rest()
     test_direct_sales_expiry_frees_the_term()
+    test_outbound_feeds_multi()
+    test_megaubytko_channel()
+    test_outbound_feeds_hub_mode()
+    test_outbound_feeds_partial_snapshot()
     test_dry_run_writes_nothing()
     if SKIPPED:
         print('\nPŘESKOČENO (neselhalo, jen se v tomhle prostředí nedalo spustit): '
