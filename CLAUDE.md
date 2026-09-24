@@ -144,6 +144,32 @@ Co je na tom v tomhle repu podstatné:
   termín jako volný — přesně ta chyba, kvůli které modul vznikl.
 - **Předrezervace není úklid.** `getDayHalves()` vrací nově `isCleaning`; u holdu se
   nekreslí „↑10", nepočítá se do přehledu úklidů ani do majitelských KPI.
+- **Předrezervace se nepočítá ani do obsazenosti a tržeb** (doplněno 2026-09-15, viz níž):
+  chip v záhlaví měsíce na obou stránkách i `buildMonthly()` drží stejnou hranici jako
+  `computeKPIs()`. Cenu jí tabulka zadat dovolí — majitel ji zná dřív, než je uhrazená —
+  ale do čísel vstoupí až po potvrzení.
+- **Cache v prohlížeči se srovnává proti snapshotu.** `mergeHistory()` umí jen přidat
+  a přepsat; `dropVanishedDirectSales()` (v obou stránkách, **identická**) po úspěšném
+  načtení `history.json` smaže z `localStorage` záznamy přímého prodeje, které v něm
+  nejsou. Bez toho propadlý hold přežije v prohlížeči až do prune a — protože nikdy
+  nezestárne na ducha — dělá i falešnou dvojitou rezervaci proti blokaci z feedu.
+  Na feedové a ruční záznamy se nesahá. **Prázdné pole je platná odpověď** (archiv
+  opravdu nic nedrží) a cache se podle něj srovná taky; vynechá se jen to podezřelé —
+  rozbitý fetch, nevalidní JSON, nebo pole, ze kterého **neprošel byť jediný řádek**
+  (chybí `uidh` nebo nemá tvar 16 hex, nečitelné nebo **nemožné** datum, nebo `end ≤ start` — takový pobyt
+  neobsadí ani noc, a proto ho do `history.json` nepustí ani `parse_ics()` ve skriptu).
+  Data čte `parseISODate()` (v obou stránkách **identická**), ne `new Date()`: ten
+  z `2027-02-30` tiše udělá 2. 3. a rozbitý řádek by prošel jako platný pobyt jinde.
+  Takový snapshot jen přidává: zahozený řádek může být právě ten přímý prodej a smazat
+  ho z cache by termín nabídlo jako volný (stejná úvaha jako `prune_missing` ve skriptu).
+  `owner.html` snapshot **použije až na úspěšné větvi `load()`, celý najednou**
+  (`pendingSnapshot`): přidat dřív než smazat by znamenalo mít chvíli v cache zrušený
+  přímý prodej i blokaci z platformy na tentýž termín (ta se do archivu vrátí, jakmile
+  přímý prodej zmizí), a to je falešná dvojitá rezervace. `index.html` maže rovnou.
+  **Cena se při tom NEstěhuje.** (Mezi 15. a 23. 9. to v #14 chvíli umělo —
+  `migrateDirectSalePrices()` — dokud #17 neotočil přednost: přímý prodej už feedem
+  pod jiným `uidh` nepřichází, takže zmizí jen když je opravdu zrušený. Stěhovat jeho
+  cenu na blokaci, která na platformě zůstala, by tu cenu započítalo do tržeb.)
 - **Do `feed.ics` se přímý prodej nepíše.** Ten soubor je zrcadlo platforem; publikovat
   vlastní rezervace ven je samostatný krok (viz „Cíl dál" níž).
 - **Událost z feedu se shodným termínem jako přímý prodej se zahazuje** (z archivu
@@ -152,8 +178,19 @@ Co je na tom v tomhle repu podstatné:
   bylo obráceně (zahazoval se hold); po zapojení výstupních feedů by se každý přímý
   prodej vrátil jako anonymní pobyt z e-chalupy a ztratil vzhled předrezervace.
 - **Když RPC selže, holdy v archivu zůstanou** a běh pokračuje (na rozdíl od selhaného feedu).
+  Totéž platí, když odpověď **přijde, ale neprojde z ní ani jeden řádek**: `valid_holds()`
+  vrátí `None` (nedostupné), ne prázdný seznam. Prázdný seznam je pro `apply_holds()`
+  rozkaz „žádné předrezervace neexistují" a smazal by z archivu všechen přímý prodej —
+  prodané termíny by se začaly nabízet jako volné.
+  A když se zahodí **jen některý** řádek, vrátí `valid_holds()` navíc `complete=False`
+  a `apply_holds(..., prune_missing=False)` podle takového seznamu **jen přidává**: co
+  v něm chybí, zůstane v archivu. Neúplný seznam nejde odlišit od „ten hold už neplatí",
+  a smazat prodaný termín je horší než nechat tam o běh dýl něco propadlého.
+  Takový ponechaný přímý prodej se v tom běhu počítá všude, kde se počítá přímý prodej
+  z odpovědi (`known` v `main()`): jeho ozvěna z platformy se zahodí a **ve výstupních
+  feedech zůstane** — jinak by se termín na platformách uvolnil kvůli rozbitému řádku.
 
-`isHold()` / `holdNote()` / `fmtISO()` jsou v `index.html` i `owner.html`
+`isHold()` / `holdNote()` / `fmtISO()` / `parseISODate()` jsou v `index.html` i `owner.html`
 **duplicitně a musí zůstat identické**, stejně jako zbytek půldenní logiky
 (`getDayHalves` / `isGhost` / `shown` / `halfStyle` / `findOverlaps`).
 
@@ -361,8 +398,17 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
   rezervací, kontinuita `uidh`, offline testy). Čeká na 3 secrety, zatím běží hub mode.
 - 2026-09-10: **ikona na plochu iPhonu** pro obě stránky (viz výš) — apple-touch-icon,
   manifest, standalone režim a respektování safe-area.
+- 2026-09-15: **nálezy Codexu na #9** — cache v prohlížeči neztrácela zrušený hold
+  (`dropVanishedDirectSales`), `Přímá` chyběla v rozpadu platforem i v `LIGHT` v `owner.html`,
+  oceněná předrezervace lezla do měsíčních tržeb a do obsazenosti v záhlaví měsíce,
+  `valid_holds()` spadla na řádku, který není objekt.
 - 2026-09-09: **předrezervace a přímý prodej** (viz výš) — pátá platforma `Přímá`,
   `kind` v `history.json`, čtení `vr_public_holds()` ze Supabase.
+- 2026-09-23: **#14 srovnaný s #16/#17/#18** — neúplná odpověď `vr_public_holds()`
+  drží ponechaný přímý prodej i ve filtru ozvěn a ve výstupních feedech; stěhování ceny
+  (`migrateDirectSalePrices`) zrušeno, po #17 už nemá co řešit a škodilo by.
+  A `history.json` s jediným rozbitým řádkem (i s prohozenými nebo nemožnými daty) už cache v prohlížeči
+  nesrovnává, jen přidává; skript pobyt bez jediné noci z feedu zahazuje.
 - 2026-09-17: **výstupní feedy `data/out/*.ics`** (viz výš). Tentýž den: kalendář byl od
   16. 9. zamrzlý — PR #7 smazal `LEGACY_HUB_URL`, ale secret `ICAL_URL_ECHALUPY` v repu
   nebyl (všechny běhy `no feed configured`); majitel ho doplnil. A do `vr_holds` ručně

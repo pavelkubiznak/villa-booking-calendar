@@ -711,17 +711,61 @@ function jumpToMonth(id) {
   el.classList.add('flash');
 }
 
+// Snapshot history.json je pro přímý prodej JEDINÝ zdroj pravdy. Hold, který propadl,
+// byl zrušen, nebo se kryje s blokací, co se mezitím vrátila z feedu, z něj zmizí —
+// jenže mergeHistory() umí jen přidat a přepsat, nikdy ubrat. Bez tohohle by takový
+// záznam zůstal v localStorage až do prune (18 měsíců po odjezdu), a protože přímý
+// prodej schválně nikdy nezestárne na ducha (isGhost ho nevyhodí), kreslil by se dál
+// jako platná předrezervace — a proti živé události z feedu i jako falešná dvojitá
+// rezervace. Přesně ten poplach, kvůli kterému isGhost vznikl.
+// Sahá se JEN na záznamy přímého prodeje: feedové drží archiv schválně (hub je
+// ztrátový) a ruční pobyt patří majiteli stránky, ne snapshotu.
+// Vrací smazané záznamy, ne jen počet: owner.html podle nich stěhuje ručně zadanou
+// cenu na náhradu, než ji pruneOrphanPrices() zahodí jako osiřelou.
+function dropVanishedDirectSales(liveUids) {
+  const history = loadHistory();
+  const removed = [];
+  Object.keys(history).forEach(uid => {
+    const h = history[uid];
+    if (!h || !h.kind) return;                        // z feedu nebo ruční
+    if (String(uid).startsWith('manual-')) return;    // ruční pobyt snapshot nezná
+    if (liveUids.has(uid)) return;
+    removed.push(h); delete history[uid];
+  });
+  if (removed.length) { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (_) {} }
+  return removed;
+}
+
+// Snapshot se načte tady, ale POUŽIJE se až na úspěšné větvi load(), celý najednou —
+// viz komentář u přiřazení níž.
+let pendingSnapshot = null;
+
+// 'YYYY-MM-DD' z history.json → místní půlnoc, nebo null. `new Date()` nemožné datum
+// (30. 2., 31. 4.) tiše přepočítá na jiný den; takový řádek je rozbitý a musí se
+// zahodit — jinak by snapshot platil za úplný a pobyt se v cache posunul na jiné noci.
+function parseISODate(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+  if (!m) return null;
+  const y = +m[1], mo = +m[2] - 1, d = +m[3];
+  const dt = new Date(y, mo, d);
+  return (dt.getFullYear() === y && dt.getMonth() === mo && dt.getDate() === d) ? dt : null;
+}
+
 async function fetchAndMergeRemoteHistory() {
+  pendingSnapshot = null;
   try {
     const res = await fetch(REMOTE_HISTORY_URL + '?_=' + Date.now());
     if (!res.ok) return 0;
     const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return 0;
+    if (!Array.isArray(data)) return 0;
     // Sanitized schema: { uidh, start, end, platform } — no guest field.
     // (Tolerate a legacy raw uid by hashing it, so a stale file still merges cleanly.)
+    // uidh musí mít tvar, který generuje skript (16 hex). Nesmysl v něm je rozbitý řádek:
+    // zahodí se a snapshot pak neplatí za úplný — jinak by smazal přímý prodej, který
+    // pod skutečným klíčem v souboru chybí.
     const events = data.map(e => ({
-        uid: e.uidh || (e.uid ? uidHash(e.uid) : ''),
-        start: new Date(e.start + 'T00:00:00'), end: new Date(e.end + 'T00:00:00'),
+        uid: is16hex(e.uidh) ? e.uidh : (!e.uidh && e.uid ? uidHash(e.uid) : ''),
+        start: parseISODate(e.start), end: parseISODate(e.end),
         platform: platformOf(e.platform),   // whitelist: never trust a free-form platform from the remote file
         // Přímý prodej: 'hold' = předrezervace (drží do holdUntil), 'direct' = potvrzená.
         kind: (e.kind === 'hold' || e.kind === 'direct') ? e.kind : undefined,
@@ -730,9 +774,23 @@ async function fetchAndMergeRemoteHistory() {
         // takže překryv s ním svítil červeně jako skutečná dvojitá rezervace.
         stale: e.stale === true,
       }))
-      .filter(e => e.uid && !isNaN(e.start) && !isNaN(e.end));
-    if (events.length === 0) return 0;
-    mergeHistory(events);
+      .filter(e => e.uid && e.start && e.end && e.end > e.start);
+    // Srovnat cache smí JEN použitelný snapshot — výpadek sítě ani rozbitý soubor
+    // nesmí uvolnit držený termín (stejná úvaha jako `holds is None` ve skriptu).
+    // Prázdné pole ale použitelné JE: archiv opravdu nic nedrží, takže i tehdy se
+    // zrušený hold musí z cache ztratit. Podezřelé je pole, ze kterého neprošel
+    // KAŽDÝ řádek — i jediný zahozený může být právě ten přímý prodej, který by se
+    // pak z cache smazal a jeho termín by se tvářil volný. Takový snapshot jen
+    // přidává (stejně jako neúplná odpověď databáze ve skriptu, `prune_missing`).
+    // Použít se smí AŽ v load(), na úspěšné větvi, a to obě půlky naráz: přidat
+    // dřív než smazat nejde — v cache by chvíli ležel zrušený přímý prodej i blokace
+    // z platformy na tentýž termín (ta se do archivu vrátí, jakmile přímý prodej
+    // zmizí), a kalendář by nad jedním pobytem vykreslil falešnou dvojitou rezervaci.
+    // Nepovedený běh se prostě zopakuje celý.
+    pendingSnapshot = {
+      uids: events.length === data.length ? new Set(events.map(e => e.uid)) : null,
+      events,
+    };
     return events.length;
   } catch (_) { return 0; }
 }
@@ -863,6 +921,10 @@ function buildMonthly(bookings) {
     return monthly[key];
   };
   bookings.forEach(b => {
+    // Stejná hranice jako v computeKPIs(): předrezervace není tržba. Cenu jí
+    // tabulka zadat dovolí (majitel ji zná dřív, než je uhrazená), ale do čísel
+    // se smí až po potvrzení — jinak si chip v záhlaví a KPI odporují.
+    if (isHold(b)) return;
     const n = nightsBetween(b.start, b.end);
     if (n <= 0) return;
     const total = priceCZK(b.uid);
@@ -986,7 +1048,17 @@ let kpiBookings = null;
 function renderKPIs(bookings) {
   if (bookings) kpiBookings = bookings;
   const src = kpiBookings || lastBookings;
-  if (!src.length) return;
+  if (!src.length) {
+    // Prázdný živý výsledek musí zahladit i to, co nakreslila cache — jinak nahoře
+    // dál svítí tržby a obsazenost z pobytů, které v kalendáři už nejsou.
+    const row = document.getElementById('kpi-row');
+    if (row) row.innerHTML = '';
+    const wb = document.getElementById('warn-banner');
+    if (wb) wb.className = 'warn-banner';
+    const bd = document.getElementById('breakdown');
+    if (bd) bd.style.display = 'none';
+    return;
+  }
   const k = computeKPIs(src);
   const row = document.getElementById('kpi-row');
   row.innerHTML = `
@@ -1022,6 +1094,8 @@ function renderKPIs(bookings) {
 }
 
 function renderBreakdown(k) {
+  // 'Přímá' sem patří stejně jako feedové kanály — computeKPIs() ji do součtu
+  // počítá, takže bez ní by přímé tržby byly v hlavičce a v rozpadu ne.
   const order = ['Airbnb','Booking.com','E-chalupy','Fewo-direkt','Megaubytko','Přímá'];
   const rows = order.filter(p => k.byPlat[p]);
   const max = Math.max(1, ...rows.map(p => k.byPlat[p].revenue));
@@ -1085,10 +1159,12 @@ function renderCalendar(bookings) {
     card.className = 'month-card'; card.id = cardId;
     const badge = isCurrent ? `<span class="current-badge">aktuální</span>` : '';
     // Obsazenost mesice po nocich: noc zacinajici dnem d je obsazena, kdyz start <= d < end
+    // Předrezervace se do obsazenosti nepočítá — stejně jako v majitelských KPI.
+    // Termín drží a v mřížce je čárkovaně vidět, ale obsazený bude až po potvrzení.
     let occNights = 0;
     for (let d = 1; d <= dim; d++) {
       const nd = new Date(y, m, d);
-      if (bookings.some(b => b.start <= nd && nd < b.end)) occNights++;
+      if (bookings.some(b => !isHold(b) && b.start <= nd && nd < b.end)) occNights++;
     }
     const occHtml = `<span class="mh-occ">${occNights}/${dim} · ${Math.round(occNights / dim * 100)} %</span>`;
     card.innerHTML = `
@@ -1342,18 +1418,28 @@ async function load(forceRefresh) {
   }
 
   try {
-    const [text, remoteHist, remotePrices] = await Promise.all([
+    const [text, , remotePrices] = await Promise.all([
       fetchWithFallback(CAL_URL),
       fetchAndMergeRemoteHistory(),
       fetchAndMergeRemotePrices(),
     ]);
     saveCache(text);
+    // Teprve tady je jisté, že dorazil feed. Snapshot se aplikuje celý, nebo vůbec:
+    // smazat zrušený přímý prodej a přidat, co je v archivu místo něj, patří k sobě.
+    // Neúplný snapshot (`uids === null`) nemaže nic, jen přidává — jako index.html.
+    let appliedHist = 0;
+    if (pendingSnapshot) {
+      if (pendingSnapshot.uids) dropVanishedDirectSales(pendingSnapshot.uids);
+      if (pendingSnapshot.events.length) mergeHistory(pendingSnapshot.events);
+      appliedHist = pendingSnapshot.events.length;
+    }
+    pendingSnapshot = null;
     lastBookings = mergeHistory(parseICS(text));
     pruneOrphanPrices(lastBookings);   // safe here: history is fully loaded (iCal + remote)
     renderCalendar(lastBookings);
     const now = new Date();
     const notes = [];
-    if (remoteHist > 0)   notes.push(`+${remoteHist} z archivu`);
+    if (appliedHist > 0)  notes.push(`+${appliedHist} z archivu`);
     if (remotePrices > 0) notes.push(`+${remotePrices} cen`);
     statusEl.className = 'ok';
     statusEl.textContent = `✅ Živě — ${lastBookings.length} rezervací · ${now.toLocaleTimeString('cs-CZ')}${notes.length ? ' · ' + notes.join(' · ') : ''}`;

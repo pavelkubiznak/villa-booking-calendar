@@ -472,6 +472,15 @@ def test_parser_edges():
     check('no DTEND, DATE-TIME start → skipped (zero length) and logged without the UID',
           ev == [] and 'skipped VEVENT' in log and 'x4@airbnb.com' not in log, log)
 
+    ev, log = one(f'BEGIN:VEVENT\r\nUID:x6@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                  f'DTSTART;VALUE=DATE:{d(4)}\r\nDTEND;VALUE=DATE:{d(0)}\r\nEND:VEVENT\r\n')
+    check('DTEND before DTSTART → skipped and logged without the UID',
+          ev == [] and 'ends on or before' in log and 'x6@airbnb.com' not in log, log)
+
+    ev, _ = one(f'BEGIN:VEVENT\r\nUID:x7@airbnb.com\r\nSUMMARY:Reserved\r\n'
+                f'DTSTART:{d(0)}T100000\r\nDTEND:{d(0)}T180000\r\nEND:VEVENT\r\n')
+    check('same-day DATE-TIME (no night) → skipped', ev == [], str(ev))
+
     ev, _ = one(f'BEGIN:VEVENT\r\nUID:x5@airbnb.com\r\nSUMMARY:Reserved\r\n'
                 f'DTSTART:{d(0)}T140000\r\nDURATION:P3D\r\nEND:VEVENT\r\n')
     check('DATE-TIME start + DURATION keeps the time of day on the implied DTEND',
@@ -559,6 +568,9 @@ def test_direct_sales():
          'kind': 'hold', 'holdUntil': '2026-10-01'},
         {'uidh': 'nonsense', 'start': '2027-09-04', 'end': '2027-09-11',
          'kind': 'hold', 'holdUntil': None},
+        # rozbité řádky: ani jeden nesmí shodit běh a vzít s sebou i ten platný hold
+        None,
+        'tohle objekt není',
     ], open(os.path.join(d, 'holds.json'), 'w'))
 
     cwd = workdir()
@@ -581,6 +593,7 @@ def test_direct_sales():
           and '20270814' not in (read(cwd, 'feed.ics') or ''))
     check('a je to vidět v logu', 'echo of our own block' in r.stdout)
     check('rozbitý uidh neprojde', 'malformed uidh' in r.stdout)
+    check('řádek, co není objekt, jen vypadne', 'not an object' in r.stdout)
 
     check('do feed.ics se přímý prodej nepíše', '2222222222222222' not in (read(cwd, 'feed.ics') or ''))
     check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout, r.stdout[-400:])
@@ -606,6 +619,53 @@ def test_direct_sales_source_unavailable():
     check('kind i holdUntil přežily', kept.get('kind') == 'hold' and kept.get('holdUntil') == '2026-10-01', str(kept))
     check('firstSeen se nepřepsal', kept.get('firstSeen') == '2026-09-01', str(kept.get('firstSeen')))
     check('log to říká', 'left untouched' in r.stdout)
+
+
+def test_direct_sales_all_rows_broken():
+    """Rozbitá odpověď není prázdná odpověď — archiv se kvůli ní nesmí vyprázdnit."""
+    print('\nPŘÍMÝ PRODEJ — samé rozbité řádky drží archiv beze změny')
+    d = tempfile.mkdtemp(prefix='vr-direct-junk-')
+    open(os.path.join(d, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('booking-1@e-chalupy.cz', 'Rezervace', '20270701', '20270708')))
+    # nic z toho neprojde validací — a přitom to NENÍ „žádné předrezervace neexistují"
+    json.dump([None, 'tohle objekt není', {'uidh': 'nonsense'}], open(os.path.join(d, 'holds.json'), 'w'))
+    seed = [{'uidh': '2222222222222222', 'start': '2027-09-04', 'end': '2027-09-11',
+             'platform': 'Přímá', 'kind': 'hold', 'holdUntil': '2026-10-01',
+             'firstSeen': '2026-09-01', 'lastSeen': '2026-09-01', 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    by = {e['uidh']: e for e in json.loads(read(cwd, 'history.json'))}
+    kept = by.get('2222222222222222', {})
+    check('předrezervace zůstala', bool(kept), str(by.keys()))
+    check('pořád drží termín (není duch)', kept.get('stale') is False, str(kept.get('stale')))
+    check('log to říká', 'not one was usable' in r.stdout)
+    check('a archiv se netváří jako prázdný', 'left untouched' in r.stdout)
+
+
+def test_direct_sales_partial_snapshot_keeps_the_rest():
+    """Neúplná odpověď smí jen přidávat — zahozený řádek nesmí uvolnit prodaný termín."""
+    print('\nPŘÍMÝ PRODEJ — částečně rozbitá odpověď nemaže, jen přidává')
+    d = tempfile.mkdtemp(prefix='vr-direct-partial-')
+    open(os.path.join(d, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('booking-1@e-chalupy.cz', 'Rezervace', '20270701', '20270708')))
+    # jeden platný řádek projde, druhý (rozbitý) se zahodí — a přesně ten drží 2222…
+    json.dump([
+        {'uidh': '3333333333333333', 'start': '2027-10-02', 'end': '2027-10-09',
+         'kind': 'hold', 'holdUntil': '2026-11-01'},
+        {'uidh': 'nonsense', 'start': '2027-09-04', 'end': '2027-09-11', 'kind': 'hold'},
+    ], open(os.path.join(d, 'holds.json'), 'w'))
+    seed = [{'uidh': '2222222222222222', 'start': '2027-09-04', 'end': '2027-09-11',
+             'platform': 'Přímá', 'kind': 'hold', 'holdUntil': '2026-10-01',
+             'firstSeen': '2026-09-01', 'lastSeen': '2026-09-01', 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    by = {e['uidh']: e for e in json.loads(read(cwd, 'history.json'))}
+    check('platný řádek se publikoval', '3333333333333333' in by, str(sorted(by)))
+    check('a ten, co v neúplné odpovědi chyběl, zůstal', '2222222222222222' in by, str(sorted(by)))
+    check('firstSeen se mu nepřepsal', by.get('2222222222222222', {}).get('firstSeen') == '2026-09-01')
+    check('log to říká', 'snapshot is incomplete' in r.stdout or 'snapshot incomplete' in r.stdout, r.stdout[-400:])
 
 
 def test_direct_sales_expiry_frees_the_term():
@@ -728,6 +788,33 @@ def test_outbound_feeds_hub_mode():
           and '2222222222222222@villarudolf.com' in (out(cwd, 'airbnb.ics') or ''))
 
 
+def test_outbound_feeds_partial_snapshot():
+    """Neúplná odpověď databáze: přímý prodej, který v ní chyběl a zůstal v archivu, se
+    musí počítat i do filtru ozvěn a do výstupních feedů — ne jen do archivu."""
+    print('\nVÝSTUPNÍ FEEDY — neúplná odpověď databáze')
+    d_ = tempfile.mkdtemp(prefix='vr-out-partial-')
+    open(os.path.join(d_, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('a1@airbnb.com', 'Reserved', d(10), d(14)),
+        # ozvěna našeho bloku pro 2222…, který v odpovědi chybí (rozbitý řádek)
+        vevent('booking-7@e-chalupy.cz', 'Rezervace', d(60), d(67))))
+    json.dump([{'uidh': '3333333333333333', 'start': iso(30), 'end': iso(37),
+                'kind': 'hold', 'holdUntil': iso(5)},
+               {'uidh': 'nonsense', 'start': iso(60), 'end': iso(67), 'kind': 'hold'}],
+              open(os.path.join(d_, 'holds.json'), 'w'))
+    seed = [{'uidh': '2222222222222222', 'start': iso(60), 'end': iso(67), 'platform': 'Přímá',
+             'kind': 'hold', 'holdUntil': iso(5), 'firstSeen': ago(3), 'lastSeen': ago(1), 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    air = out(cwd, 'airbnb.ics') or ''
+    check('ponechaný přímý prodej blokuje dál', '2222222222222222@villarudolf.com' in air)
+    check('i ten z odpovědi', '3333333333333333@villarudolf.com' in air)
+    hist = json.loads(read(cwd, 'history.json'))
+    check('jeho ozvěna se zahodila (zůstane Přímá, jednou)',
+          [e['platform'] for e in hist if e['start'] == iso(60)] == ['Přímá'],
+          str([(e['platform'], e['uidh']) for e in hist if e['start'] == iso(60)]))
+    check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout)
+
 def test_dry_run_writes_nothing():
     print('\n--dry-run')
     d_ = multi_fixtures()
@@ -756,10 +843,13 @@ if __name__ == '__main__':
     test_cli()
     test_direct_sales()
     test_direct_sales_source_unavailable()
+    test_direct_sales_all_rows_broken()
+    test_direct_sales_partial_snapshot_keeps_the_rest()
     test_direct_sales_expiry_frees_the_term()
     test_outbound_feeds_multi()
     test_megaubytko_channel()
     test_outbound_feeds_hub_mode()
+    test_outbound_feeds_partial_snapshot()
     test_dry_run_writes_nothing()
     if SKIPPED:
         print('\nPŘESKOČENO (neselhalo, jen se v tomhle prostředí nedalo spustit): '
