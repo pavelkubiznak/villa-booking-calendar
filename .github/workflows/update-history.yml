@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '17 */3 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Jen na zkoušku — spočítat a vypsat do logu, nic nezapsat'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -47,7 +52,16 @@ jobs:
           ICAL_URL_FEWO:      ${{ secrets.ICAL_URL_FEWO }}
           ICAL_URL_MEGAUBYTKO: ${{ secrets.ICAL_URL_MEGAUBYTKO }}
           ICAL_URL_ECHALUPY:  ${{ secrets.ICAL_URL_ECHALUPY }}
-        run: python3 .github/scripts/update_history.py
+        # Zkušební běh: ruční spuštění s dry_run, nebo repo proměnná CALENDAR_DRY_RUN=1
+        # (drží na zkoušce i cron — pro první běh po přidání dalších feedů, viz CLAUDE.md).
+        # V tu dobu se data/ nemění a krok s commitem nemá co commitnout.
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ] || [ "${{ vars.CALENDAR_DRY_RUN }}" = "1" ]; then
+            echo "::notice::Zkušební běh (--dry-run) — nic se nezapisuje"
+            python3 .github/scripts/update_history.py --dry-run
+          else
+            python3 .github/scripts/update_history.py
+          fi
 
       - name: Commit and push if changed
         run: |
