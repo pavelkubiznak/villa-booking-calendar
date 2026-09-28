@@ -247,6 +247,10 @@ nikdo neviděl — `uid_channel()` PŘEDPOKLÁDÁ, že UID nese „megaubytko". 
 MULTI `--dry-run` ukáže jeho události zahozené jako cizí a pravidlo se doladí. Bez secretu
 se nemění nic. Zbývá: secret, a import `megaubytko.ics` v administraci Megaubytka.
 
+**Zkušební běh (od 2026-09-28):** repo proměnná `CALENDAR_DRY_RUN=1` pustí workflow (i cron)
+s `--dry-run` — nic se nezapíše, výsledek je jen v logu. Ruční spuštění má i přepínač `dry_run`.
+Postup přepnutí: proměnná na 1 → secrety → ruční běh → přečíst log → proměnnou smazat.
+
 **⏭️ Zbývá (majitel):** 3 secrety → MULTI mód
 → na e-chalupy vypnout cross-iCal na ostatní platformy.
 
