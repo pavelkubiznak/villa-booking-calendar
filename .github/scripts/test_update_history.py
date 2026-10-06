@@ -760,6 +760,9 @@ def test_outbound_feeds_multi():
             {'uidh': 'eeeeeeeeeeeeeeee', 'start': iso(56), 'end': iso(58), 'platform': 'Booking.com',
              'firstSeen': ago(30), 'lastSeen': ago(2), 'stale': False}]
     cwd = workdir(seed)
+    # minulý běh: feed.ics nesl přesně jeho události — to je měřítko „zmizelo právě teď"
+    open(os.path.join(cwd, 'data', 'feed.ics'), 'w', encoding='utf-8').write(
+        'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:cccccccccccccccc\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n')
     r = run(cwd, '--fixtures', d_)
     check('ran', r.returncode == 0, r.stderr.strip()[:300])
     air, boo, fewo, ech = (out(cwd, n) or '' for n in ('airbnb.ics', 'booking.ics', 'fewo.ics', 'echalupy.ics'))
@@ -955,6 +958,9 @@ def test_vanished_feed_stays_alert():
             for i in range(3)]
     seed = [dict(s, uidh=(s['uidh'] + '0' * 16)[:16]) for s in seed]
     cwd = workdir(seed)
+    open(os.path.join(cwd, 'data', 'feed.ics'), 'w', encoding='utf-8').write(      # minulý běh je měl
+        'BEGIN:VCALENDAR\r\n' + ''.join(f'BEGIN:VEVENT\r\nUID:{s["uidh"]}\r\nEND:VEVENT\r\n' for s in seed)
+        + 'END:VCALENDAR\r\n')
     r = run(cwd, '--fixtures', d_)
     check('ran', r.returncode == 0, r.stderr.strip()[:300])
     check('hromadný úbytek hlášen', 'vanished in ONE run' in r.stdout, r.stdout[-800:])
@@ -963,6 +969,17 @@ def test_vanished_feed_stays_alert():
           all(f'{s["uidh"]}@villarudolf.com' in air for s in seed), air[-400:])
     check('do booking.ics se jeho vlastní pobyty nevracejí',
           not any(s['uidh'] in (out(cwd, 'booking.ics') or '') for s in seed))
+    # další běh: v archivu jsou pořád „živé", ale zmizely už minule — hlásit se znovu nesmí
+    r2 = run(cwd, '--fixtures', d_)
+    check('další běh poplach neopakuje (Codex na #22)',
+          r2.returncode == 0 and 'vanished in ONE run' not in r2.stdout and 'vanished:' not in r2.stdout,
+          r2.stdout[-600:])
+    check('a termíny drží dál, dokud běží ochranná doba',
+          all(f'{s["uidh"]}@villarudolf.com' in (out(cwd, 'airbnb.ics') or '') for s in seed))
+    # bez předchozího feed.ics (první běh) se nic nehlásí — radši ticho než planý poplach
+    cwd = workdir(seed)
+    r3 = run(cwd, '--fixtures', d_)
+    check('bez minulého běhu se zmizení nehlásí', 'vanished' not in r3.stdout, r3.stdout[-400:])
 
 
 def test_dry_run_writes_nothing():
