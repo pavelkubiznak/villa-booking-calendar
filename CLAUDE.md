@@ -224,8 +224,17 @@ a blokovat podle něj. `update_history.py` proto při každém běhu píše čty
 Adresa: `https://pavelkubiznak.github.io/villa-booking-calendar/data/out/<soubor>`.
 Jen data, `SUMMARY` je konstanta, UID = `uidh@villarudolf.com`.
 
-- **Zdroj jsou události z TOHOTO běhu + přímý prodej, ne archiv.** Archiv drží zmizelý
-  pobyt 2 dny „živý" (`STALE_AFTER_DAYS`); storno na Bookingu nesmí 2 dny blokovat Airbnb.
+- **Zdroj jsou události z TOHOTO běhu + přímý prodej + (MULTI) ochranná doba.** Pobyt, který
+  z feedu zmizel, blokuje OSTATNÍ platformy ještě `OUT_GRACE_DAYS = 1` den po posledním
+  výskytu (tj. 24–48 h). Do 2026-10 se uvolnil hned v dalším běhu — jenže feed, který se
+  jednou vrátí prázdný (výpadek, platný prázdný kalendář), by tak naráz uvolnil všechno,
+  co držel, na všech platformách. Storno se teď na ostatních kanálech uvolní o den později
+  (bezpečný směr). Každé zmizení je v logu (`vanished:`), 3+ z jednoho feedu v jednom běhu
+  = `::warning::` (`VANISH_ALERT`). Vlastní platformě se zmizelý pobyt nevrací.
+- **Naše vlastní bloky se vracejí** — e-chalupy importují `echalupy.ics` a posílají ho dál
+  pod UID `…@villarudolf.com`. Takové události se zahazují z každého feedu v každém módu
+  (`OWN_ECHO`); v MULTI módu by jinak každý pobyt dostal kopii „z e-chalup" a storno by
+  přežívalo, dokud hub neobnoví import.
 - **Přímý prodej je ve výstupu VŽDY**, i když ho `apply_holds()` do archivu nepustí kvůli
   shodnému termínu z platformy. Jinak by blok závisel na vlastní ozvěně: platforma
   importuje blok → hlásí ty noci → hold vypadne → platforma odblokuje → hold se vrátí…
@@ -250,9 +259,33 @@ se nemění nic. Zbývá: secret, a import `megaubytko.ics` v administraci Megau
 **Zkušební běh (od 2026-09-28):** repo proměnná `CALENDAR_DRY_RUN=1` pustí workflow (i cron)
 s `--dry-run` — nic se nezapíše, výsledek je jen v logu. Ruční spuštění má i přepínač `dry_run`.
 Postup přepnutí: proměnná na 1 → secrety → ruční běh → přečíst log → proměnnou smazat.
+🔴 **Past (28. 9.–6. 10. 2026):** proměnná zůstala zapnutá 8 dní. Běhy byly zelené, ale nic
+se nezapisovalo — zamrzl úklid, `/sprava/` i výstupní feedy (nový přímý prodej 21.–28. 8. 2027
+se na platformy nepropsal a týden byl ~10 dní otevřený na Airbnb a FeWo). Smazáno 6. 10.
+Na zkoušku MULTI módu proměnnou **nepoužívej** — stáhni exporty a pusť skript lokálně
+s `--fixtures <dir> --dry-run` (postup níž), na GitHubu pak jen ruční běh s přepínačem `dry_run`.
 
-**⏭️ Zbývá (majitel):** 3 secrety → MULTI mód
-→ na e-chalupy vypnout cross-iCal na ostatní platformy.
+**Exporty kanálů prohlédnuté 6. 10. 2026** (stažené ve stránce extranetu, bez popisů):
+- **Airbnb** — jen vlastní rezervace (`Reserved`, UID `…@airbnb.com`) + „Airbnb (Not available)"
+  na dnešek. Importované bloky **nevrací**.
+- **FeWo** — jen vlastní rezervace (`Reserved - <jméno>`, UID = UUID bez `@`), i proběhlé
+  (rok zpět). Importované bloky **nevrací**. Export má volbu „Auch Buchungen unter Vorbehalt"
+  — pro náš feed ji ZAPNOUT (URL bez `?nonTentative`): podmíněná rezervace má blokovat.
+- **e-chalupy** — vlastní (UID `18852-…@e-chalupy.cz`) + všechno importované s původním UID,
+  včetně našich bloků `…@villarudolf.com` (od 2026-10 zahazované).
+- Booking a Megaubytko — doplnit (viz `⏭️ Zbývá`).
+
+Simulace MULTI nad skutečnými exporty (Airbnb + FeWo + e-chalupy, 6. 10. 2026): 0 falešných
+dvojitých rezervací; ruční kopie Airbnb pobytu 5.–9. 5. 2027 v e-chalupách se sloučí
+a vítěz převezme její archivní klíč (`adopt_mirror_uidh`), takže host ve `/sprava/` neosiří.
+Přibude 5 proběhlých FeWo pobytů 2025–26, které v archivu chyběly (hub nesl jen budoucnost).
+
+**Cross-iCal přes e-chalupy ZŮSTÁVÁ** i v MULTI módu — je to druhá, nezávislá cesta blokace.
+Když náš kalendář zamrzne (viz past výš), platformy pořád blokují přes e-chalupy, a naopak.
+Termín se uvolní, až když ho pustí obě cesty — pozdě, ale nikdy omylem.
+
+**⏭️ Zbývá:** Booking + Megaubytko export → secrety `ICAL_URL_AIRBNB/BOOKING/FEWO/MEGAUBYTKO`
+(vkládá majitel) → ruční běh s `dry_run` → přečíst log → ostrý běh.
 
 ⚠️ **Neověřené riziko pro MULTI mód:** jestli Booking/FeWo importovaný blok **re-exportují**
 ve svém feedu jako vlastní událost. Airbnb ne (a jeho „Not available" se filtruje).
@@ -396,6 +429,12 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
    commitem** + obsah `origin/main`. Ostrý pohled do prohlížeče zůstává na majiteli.
 
 ## Nedávné změny
+
+- 2026-10-06: **MULTI mód bezpečně** — ochranná doba `OUT_GRACE_DAYS`, zahazování ozvěn
+  `@villarudolf.com`, převzetí klíče ruční kopie (`adopt_mirror_uidh`), hlášení zmizelých
+  pobytů. Tentýž den: zkušební běh vypnutý (8 dní zamrzlý kalendář), #15 (e-chalupy
+  `required`) dotažený a sloučený, kontrola obsazenosti napříč kanály 0 nesouladů
+  (`verified.json`, #21).
 
 - 2026-07: anonymizace veřejných dat (jména pryč, UID → hash).
 - 2026-07: okno kalendáře = aktuální měsíc **+24 měsíců** (vždy ≥2 roky dopředu).

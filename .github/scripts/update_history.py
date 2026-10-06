@@ -154,10 +154,17 @@ writes data/out/<platform>.ics: everything occupied EXCEPT that platform's own
 reservations (sending those back would keep a cancelled stay blocked on its own
 platform, and invites a mirror loop).
 
-  * Source = this run's live feed events + direct sales. NOT the archive: the archive
-    keeps a vanished stay "live" for STALE_AFTER_DAYS, and a cancelled Booking stay
-    must not block Airbnb for two more days. A failed feed aborts the run before
-    anything is written, so the previous files simply stay in place.
+  * Source = this run's live feed events + direct sales + (MULTI MODE) stays that
+    vanished from their feed but were seen within OUT_GRACE_DAYS. Until 2026-10 a
+    vanished stay was released on the very next run; but a feed that glitches (a valid,
+    empty calendar) would then free every night it owned on every platform at once.
+    Now a cancellation frees the other platforms ~1–2 days later — the safe direction —
+    and a feed losing VANISH_ALERT stays in one run is reported as a likely breakage.
+    A failed feed aborts the run before anything is written, so the previous files
+    simply stay in place.
+  * Our own blocks coming back (UID …@villarudolf.com — e-chalupy re-exports what it
+    imports) are dropped from every feed in every mode: they are never a reservation,
+    and left in they would keep a cancelled stay alive as an "e-chalupy booking".
   * A direct sale is ALWAYS in every outbound feed — even when apply_holds() did not
     publish it because a platform already shows the same dates. Once Booking imports
     our block and (if it re-exports it) reports those nights itself, the hold would
@@ -210,6 +217,26 @@ OUT_FEEDS = (
     ('echalupy.ics',  'E-chalupy'),
 )
 OUT_SUMMARY = 'Villa Rudolf - obsazeno'
+
+# UID domain of our outbound events (build_out_feed) and the pseudo-channel uid_channel()
+# gives them when a platform re-exports one. Such an event is our own block coming back,
+# never a reservation: dropped from every feed, in every mode. Left in, the e-chalupy copy
+# of every stay we publish would pose as an e-chalupy booking — in MULTI MODE that is
+# every stay in the calendar — and keep a cancelled stay alive until the hub refreshed.
+OWN_UID_DOMAIN = '@villarudolf.com'
+OWN_ECHO       = 'náš blok (ozvěna)'
+
+# MULTI MODE: a stay that vanished from its feed keeps blocking the OTHER platforms for
+# this many days after it was last seen (lastSeen >= today - N). A feed that glitches —
+# a valid but empty calendar, a stay briefly missing — must not release every night it
+# owned on all platforms within one run; that is a double booking waiting to happen.
+# The price is that a genuine cancellation frees the other platforms ~1–2 days later.
+# Blocking a free night a day too long is the safe direction; releasing a sold one is not.
+OUT_GRACE_DAYS = 1
+
+# A feed losing this many future stays in one run is reported loudly: one cancellation is
+# normal, several at once is far more likely a broken feed than a run of cancellations.
+VANISH_ALERT = 3
 
 # The Action runs every ~3 h. Two days of grace means a transient outage (or a few
 # failed runs in a row) never flips a live booking to "stale" by accident.
@@ -330,6 +357,10 @@ def implied_dtend(dtstart, duration):
 
 def uid_channel(uid):
     """Which system minted this UID. Same rules the hub feed has always used."""
+    # Our own outbound block (data/out/*.ics, UID = <uidh>@villarudolf.com) that a
+    # platform imported and now re-exports — e-chalupy does exactly that. It is never a
+    # reservation: see OWN_ECHO in collect_events().
+    if uid.strip().lower().endswith(OWN_UID_DOMAIN): return OWN_ECHO
     # Megaubytko.cz (2026-09-17): its real feed has not been seen yet — the e-chalupy hub
     # imports it, that is all we know. ASSUMPTION: its UIDs name the domain. If they do
     # not, the first MULTI dry-run shows its events filtered as someone else's and this
@@ -403,6 +434,11 @@ def is_airbnb_noise(e):
     return e['summary'] == AIRBNB_NOISE
 
 
+def is_own_echo(e):
+    """Our own data/out/*.ics block re-exported by a platform — see OWN_UID_DOMAIN."""
+    return e['uid_ch'] == OWN_ECHO
+
+
 def own_bookings(events, channel, configured):
     """Keep only the reservations this channel actually owns.
 
@@ -414,6 +450,9 @@ def own_bookings(events, channel, configured):
     for e in events:
         if is_airbnb_noise(e):
             dropped.append((e, 'Airbnb auto-block noise (dropped in every mode)'))
+            continue
+        if is_own_echo(e):
+            dropped.append((e, 'our own outbound block echoed back (dropped in every mode)'))
             continue
         if blockers and any(b in e['summary'] for b in blockers):
             dropped.append((e, 'block marker in SUMMARY'))
@@ -477,8 +516,39 @@ def collapse_cross_feed_duplicates(events):
         owner = (next((e for e in group if e['uid_ch'] == e['feed_ch']), None)
                  or next((e for e in group if e['feed_ch'] == 'E-chalupy'), group[0]))
         kept.append(owner)
-        collapsed.append((span, [e['feed_ch'] for e in group], owner['platform']))
+        collapsed.append((span, [e['feed_ch'] for e in group], owner['platform'],
+                          owner, [e for e in group if e is not owner]))
     return kept, collapsed, kept_clashes
+
+
+def adopt_mirror_uidh(collapsed, history, today):
+    """Keep the /sprava/ link when a collapsed mirror is the copy the archive knows.
+
+    The typical case: a booking that never reached the hub, so the owner typed a copy of
+    it into e-chalupy by hand (5.–9. 5. 2027). The archive and vr_bookings.uidh know that
+    COPY. Once the home channel's own feed is read, its event wins the collapse under a
+    brand-new uidh and on a different platform — adopt_existing_uidh() matches on
+    (start, end, platform) and cannot see it — so the guest record would orphan into a
+    ghost ("zrušeno na platformě" in /sprava/) next to a new stay without a guest.
+
+    So: a winner the archive does not know inherits the uidh of exactly ONE collapsed
+    mirror that is in the archive, live, and not a direct sale. Same nights, same stay —
+    the collapse has already decided that and logged it. Returns a list of
+    (old_uidh, new_uidh, start, end, platform)."""
+    adopted = []
+    for span, _feeds, _plat, owner, losers in collapsed:
+        if owner['uidh'] in history:
+            continue
+        cands = [l for l in losers
+                 if l['uidh'] in history
+                 and not history[l['uidh']].get('kind')
+                 and not is_stale(history[l['uidh']].get('lastSeen'), today)]
+        if len(cands) != 1:
+            continue
+        new = owner['uidh']
+        owner['uidh'] = cands[0]['uidh']
+        adopted.append((owner['uidh'], new, span[0], span[1], owner['platform']))
+    return adopted
 
 
 def build_feed(events, rfc_dates=False):
@@ -524,6 +594,7 @@ def out_entries(events, holds, history, multi, today_s):
     rows = [dict(h, platform=HOLD_PLATFORM) for h in holds]
     if multi:
         rows += events
+        rows += vanished_in_grace(events, history, today_s)
     out = {}
     for r in rows:
         if r['end'] <= today_s:                 # checkout today blocks no night
@@ -534,6 +605,48 @@ def out_entries(events, holds, history, multi, today_s):
             'firstSeen': history.get(r['uidh'], {}).get('firstSeen') or today_s,
         }
     return list(out.values())
+
+
+def vanished_in_grace(events, history, today_s):
+    """Feed stays missing from THIS run that still block the other platforms.
+
+    An archived stay (not a direct sale — those have their own rules) that has not
+    checked out yet, is absent from this run's events, and was last seen no more than
+    OUT_GRACE_DAYS ago. `history` already carries this run's lastSeen stamps, so a stay
+    seen earlier today counts as seen today. See OUT_GRACE_DAYS for why."""
+    seen = {e['uidh'] for e in events}
+    floor = (datetime.strptime(today_s, '%Y-%m-%d')
+             - timedelta(days=OUT_GRACE_DAYS)).strftime('%Y-%m-%d')
+    return [h for h in history.values()
+            if h['uidh'] not in seen
+            and not h.get('kind')
+            and h.get('platform') != HOLD_PLATFORM
+            and h['end'] > today_s
+            and (h.get('lastSeen') or '') >= floor]
+
+
+def report_vanished(events, history_before, configured, today):
+    """Log every future stay that was live before this run and is missing from it, per
+    feed — and shout when one feed lost VANISH_ALERT or more at once (see VANISH_ALERT).
+    Only channels read this run are judged: a stay of a channel we do not read cannot
+    have vanished from its feed."""
+    seen = {e['uidh'] for e in events}
+    today_s = today.strftime('%Y-%m-%d')
+    gone = {}
+    for h in history_before.values():
+        if (h['uidh'] in seen or h.get('kind') or h['end'] <= today_s
+                or h.get('platform') not in configured
+                or is_stale(h.get('lastSeen'), today)):
+            continue
+        gone.setdefault(h['platform'], []).append(h)
+    for plat, hs in sorted(gone.items()):
+        for h in sorted(hs, key=lambda x: x['start']):
+            print(f"  vanished: {h['start']}→{h['end']} {plat} — no longer in its feed; keeps "
+                  f"blocking the other platforms for {OUT_GRACE_DAYS} day(s) after last seen")
+        if len(hs) >= VANISH_ALERT:
+            print(f'::warning::{plat}: {len(hs)} future stays vanished in ONE run — a broken '
+                  f'feed is likelier than {len(hs)} cancellations. Check the {plat} extranet.')
+    return gone
 
 
 def build_out_feed(entries, exclude_platform):
@@ -926,12 +1039,17 @@ def collect_events(feeds, multi):
 
         if not multi:
             # HUB MODE — unchanged behaviour: the UID decides the platform, and the only
-            # filter is Airbnb's "not available" auto-block noise.
-            kept = [e for e in parsed if not is_airbnb_noise(e)]
+            # filters are Airbnb's "not available" auto-block noise and our own outbound
+            # blocks coming back (until 2026-10 those were caught one step later, as the
+            # echo of a direct sale with the very same dates — same result).
+            echoes = [e for e in parsed if is_own_echo(e)]
+            kept = [e for e in parsed if not is_airbnb_noise(e) and not is_own_echo(e)]
             for e in kept:
                 e['platform'] = e['uid_ch']
                 e['feed_ch']  = ch
             print(f'{ch}: {len(parsed)} events → {len(kept)} bookings (hub mode)')
+            for e in echoes:
+                print(f"    - {e['start']}→{e['end']}: our own outbound block echoed back")
             events.extend(kept)
             continue
 
@@ -997,10 +1115,15 @@ def main():
 
     if multi:
         events, collapsed, kept_clashes = collapse_cross_feed_duplicates(events)
-        for span, feeds_, winner in collapsed:
+        for span, feeds_, winner, _owner, _losers in collapsed:
             print(f'::warning::same nights {span[0]}→{span[1]} came from the '
                   f'{" + ".join(feeds_)} feeds — kept {winner}, treated the rest as a mirror. '
                   f'If these are genuinely two different stays, it is a DOUBLE BOOKING.')
+        _now = datetime.now()
+        for old, new, s, e_, p in adopt_mirror_uidh(
+                collapsed, history, datetime(_now.year, _now.month, _now.day)):
+            print(f'uidh continuity: {s}→{e_} {p} kept archived key {old} of the collapsed '
+                  f'mirror (feed now says {new}) — /sprava/ link preserved')
         for span, feeds_ in kept_clashes:
             print(f'::warning::same nights {span[0]}→{span[1]} appear MORE THAN ONCE in one '
                   f'feed ({" + ".join(feeds_)}) — nothing collapsed, every booking kept. '
@@ -1046,6 +1169,9 @@ def main():
     for old, new, s, e_, p in refused:
         print(f'uidh continuity: {s}→{e_} {p} matches STALE archived {old} — NOT adopted, '
               f'new key {new}. Same stay after all? Re-link it in /sprava/ by hand.')
+
+    if multi:
+        report_vanished(events, history, {f['channel'] for f in feeds}, today)
 
     # Sanitized feed snapshot (public pages read it same-origin from GitHub Pages).
     # Written AFTER adoption so feed.ics and history.json agree on every uidh.
