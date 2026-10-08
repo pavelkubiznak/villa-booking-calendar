@@ -55,10 +55,17 @@ jobs:
         # Zkušební běh: ruční spuštění s dry_run, nebo repo proměnná CALENDAR_DRY_RUN=1
         # (drží na zkoušce i cron — pro první běh po přidání dalších feedů, viz CLAUDE.md).
         # V tu dobu se data/ nemění a krok s commitem nemá co commitnout.
+        # Cron na zkoušce ale skončí ČERVENĚ: 28. 9.–6. 10. 2026 zůstala proměnná zapnutá
+        # 8 dní, běhy byly zelené a kalendář přitom nic nezapisoval (úklid, /sprava/,
+        # blokace přímých prodejů na platformách). Neúspěšný běh pošle GitHub e-mailem.
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ] || [ "${{ vars.CALENDAR_DRY_RUN }}" = "1" ]; then
             echo "::notice::Zkušební běh (--dry-run) — nic se nezapisuje"
             python3 .github/scripts/update_history.py --dry-run
+            if [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "::error::Repo proměnná CALENDAR_DRY_RUN=1 drží na zkoušce i cron — kalendář NEZAPISUJE (úklid, /sprava/ i výstupní feedy stojí). Po přečtení logu ji smaž."
+              exit 1
+            fi
           else
             python3 .github/scripts/update_history.py
           fi
