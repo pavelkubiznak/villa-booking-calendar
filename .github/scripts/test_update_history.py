@@ -981,6 +981,25 @@ def test_vanished_feed_stays_alert():
     r3 = run(cwd, '--fixtures', d_)
     check('bez minulého běhu se zmizení nehlásí', 'vanished' not in r3.stdout, r3.stdout[-400:])
 
+    # Pobyt, který je ve feedu dál a jen ho překryl nový přímý prodej se stejnými nocemi
+    # (filtr ozvěn ho z událostí vyřadí), NEzmizel (Codex na #22).
+    d2 = tempfile.mkdtemp(prefix='vr-vanish-echo-')
+    w2 = lambda n, c: open(os.path.join(d2, n), 'w', encoding='utf-8').write(c)
+    w2('Airbnb.ics', calendar(vevent('a1@airbnb.com', 'Reserved', d(0), d(4))))
+    w2('Booking.com.ics', calendar(vevent('bk-77@booking.com', 'CLOSED - Not available', d(20), d(24))))
+    w2('E-chalupy.ics', calendar(vevent('ech-1@e-chalupy.cz', 'Rezervace', d(31), d(38))))
+    json.dump([{'uidh': '4444444444444444', 'start': iso(20), 'end': iso(24), 'kind': 'direct',
+                'holdUntil': None}], open(os.path.join(d2, 'holds.json'), 'w'))
+    bk = load_module().uid_hash('bk-77@booking.com')
+    cwd = workdir([{'uidh': bk, 'start': iso(20), 'end': iso(24), 'platform': 'Booking.com',
+                    'firstSeen': ago(30), 'lastSeen': ago(0), 'stale': False}])
+    open(os.path.join(cwd, 'data', 'feed.ics'), 'w', encoding='utf-8').write(
+        f'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:{bk}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n')
+    r4 = run(cwd, '--fixtures', d2)
+    check('ozvěna přímého prodeje se nehlásí jako zmizelý pobyt',
+          r4.returncode == 0 and 'echo of our own block' in r4.stdout and 'vanished:' not in r4.stdout,
+          r4.stdout[-600:])
+
 
 def test_dry_run_writes_nothing():
     print('\n--dry-run')

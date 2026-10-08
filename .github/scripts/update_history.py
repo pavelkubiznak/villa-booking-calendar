@@ -635,7 +635,7 @@ def previous_run_uidhs():
         return None
 
 
-def report_vanished(events, history_before, configured, today, previous=None):
+def report_vanished(seen, history_before, configured, today, previous=None):
     """Log every future stay that the PREVIOUS run still had and this one does not, per
     feed — and shout when one feed lost VANISH_ALERT or more at once (see VANISH_ALERT).
     Only channels read this run are judged: a stay of a channel we do not read cannot
@@ -644,8 +644,12 @@ def report_vanished(events, history_before, configured, today, previous=None):
     `previous` is previous_run_uidhs(). Only the run that SEES a stay go reports it: the
     archive keeps a vanished stay live for STALE_AFTER_DAYS, so judging by the archive
     alone would repeat the same alarm on every run for days (Codex na #22). Without a
-    previous snapshot nothing is reported — better silent once than a false alarm."""
-    seen = {e['uidh'] for e in events}
+    previous snapshot nothing is reported — better silent once than a false alarm.
+
+    `seen` is every uidh the feeds delivered this run — taken BEFORE the direct-sale echo
+    filter and including the keys the mirror collapse kept: a platform event dropped only
+    because a new direct sale covers the same nights is still in its feed and has not
+    vanished (Codex na #22)."""
     today_s = today.strftime('%Y-%m-%d')
     gone = {}
     if previous is None:
@@ -1124,6 +1128,9 @@ def main():
     print(f'Loaded {len(history)} existing entries (normalized to uidh, guest dropped)')
 
     events, ok = collect_events(feeds, multi)
+    # Co feedy v tomhle běhu opravdu poslaly — měřítko pro report_vanished(), než
+    # z `events` něco vyřadí filtr ozvěn přímého prodeje.
+    delivered = {e['uidh'] for e in events}
     if not ok:
         # A feed that failed to load looks exactly like a feed with no bookings, and
         # rewriting the archive from that would age every stay it owned into `stale`.
@@ -1189,8 +1196,8 @@ def main():
               f'new key {new}. Same stay after all? Re-link it in /sprava/ by hand.')
 
     if multi:
-        report_vanished(events, history, {f['channel'] for f in feeds}, today,
-                        previous_run_uidhs())
+        report_vanished(delivered | {e['uidh'] for e in events}, history,
+                        {f['channel'] for f in feeds}, today, previous_run_uidhs())
 
     # Sanitized feed snapshot (public pages read it same-origin from GitHub Pages).
     # Written AFTER adoption so feed.ics and history.json agree on every uidh.
