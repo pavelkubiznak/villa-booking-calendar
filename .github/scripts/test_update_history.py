@@ -999,6 +999,9 @@ def test_vanished_feed_stays_alert():
     check('ozvěna přímého prodeje se nehlásí jako zmizelý pobyt',
           r4.returncode == 0 and 'echo of our own block' in r4.stdout and 'vanished:' not in r4.stdout,
           r4.stdout[-600:])
+    air4 = out(cwd, 'airbnb.ics') or ''
+    check('a ven jde jen jednou — jako přímý prodej, ne ještě v ochranné době (Codex na #22)',
+          '4444444444444444@villarudolf.com' in air4 and f'{bk}@villarudolf.com' not in air4, air4[-500:])
 
 
 def test_dry_run_writes_nothing():

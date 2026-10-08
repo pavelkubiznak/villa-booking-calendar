@@ -583,7 +583,7 @@ def build_feed(events, rfc_dates=False):
     return '\r\n'.join(lines) + '\r\n'
 
 
-def out_entries(events, holds, history, multi, today_s):
+def out_entries(events, holds, history, multi, today_s, delivered=()):
     """What is occupied from today on, as {uidh, start, end, platform, firstSeen}.
 
     `holds` is this run's validated direct sales, or None when the database was not
@@ -594,7 +594,7 @@ def out_entries(events, holds, history, multi, today_s):
     rows = [dict(h, platform=HOLD_PLATFORM) for h in holds]
     if multi:
         rows += events
-        rows += vanished_in_grace(events, history, today_s)
+        rows += vanished_in_grace(events, history, today_s, delivered)
     out = {}
     for r in rows:
         if r['end'] <= today_s:                 # checkout today blocks no night
@@ -607,14 +607,19 @@ def out_entries(events, holds, history, multi, today_s):
     return list(out.values())
 
 
-def vanished_in_grace(events, history, today_s):
+def vanished_in_grace(events, history, today_s, delivered=()):
     """Feed stays missing from THIS run that still block the other platforms.
 
     An archived stay (not a direct sale — those have their own rules) that has not
     checked out yet, is absent from this run's events, and was last seen no more than
     OUT_GRACE_DAYS ago. `history` already carries this run's lastSeen stamps, so a stay
-    seen earlier today counts as seen today. See OUT_GRACE_DAYS for why."""
-    seen = {e['uidh'] for e in events}
+    seen earlier today counts as seen today. See OUT_GRACE_DAYS for why.
+
+    `delivered` = uidh the feeds sent this run. Such a stay has not vanished — it left
+    `events` only as the echo of a direct sale on the same nights, and the direct sale
+    already blocks them; republishing it would put the same stay out twice under two
+    UIDs (Codex na #22)."""
+    seen = {e['uidh'] for e in events} | set(delivered)
     floor = (datetime.strptime(today_s, '%Y-%m-%d')
              - timedelta(days=OUT_GRACE_DAYS)).strftime('%Y-%m-%d')
     return [h for h in history.values()
@@ -1223,7 +1228,7 @@ def main():
 
     # Outbound feeds — from THIS run's events and direct sales (`known`: archived direct
     # sales stand in only where the database did not answer in full).
-    outbound = out_entries(events, known, history, multi, today_s)
+    outbound = out_entries(events, known, history, multi, today_s, delivered)
     print(f'Outbound feeds: {len(outbound)} occupied term(s)'
           + ('' if multi else ' (hub mode — direct sales only)'))
 
