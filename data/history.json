@@ -459,6 +459,16 @@
     "stale": true
   },
   {
+    "uidh": "bac38727b0148f98",
+    "start": "2027-06-30",
+    "end": "2027-07-03",
+    "platform": "Přímá",
+    "firstSeen": "2026-10-12",
+    "lastSeen": "2026-10-12",
+    "kind": "direct",
+    "stale": false
+  },
+  {
     "uidh": "0dcf556ecb298ab7",
     "start": "2027-07-03",
     "end": "2027-07-10",
