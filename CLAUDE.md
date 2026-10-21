@@ -177,6 +177,11 @@ Co je na tom v tomhle repu podstatné:
   majitele, ne druhá rezervace. Platí záznam ze správy (nese `kind`). Do 2026-09-17 to
   bylo obráceně (zahazoval se hold); po zapojení výstupních feedů by se každý přímý
   prodej vrátil jako anonymní pobyt z e-chalupy a ztratil vzhled předrezervace.
+  **Zahozená ozvěna se ale hlásí** (od 2026-10-21): v datech je k nerozeznání od nové
+  rezervace z platformy na přesně tentýž termín, takže přímý prodej nese v `history.json`
+  pole **`echo`** (platformy, které jeho noci hlásí) a `/sprava/` + VrConflictWatch se
+  majitele zeptají. Archivní řádek ozvěny je rovnou `stale` — dva dny dobíhal živý
+  a hlídač z něj 23. 9. 2026 poslal falešnou dvojitou rezervaci.
 - **Když RPC selže, holdy v archivu zůstanou** a běh pokračuje (na rozdíl od selhaného feedu).
   Totéž platí, když odpověď **přijde, ale neprojde z ní ani jeden řádek**: `valid_holds()`
   vrátí `None` (nedostupné), ne prázdný seznam. Prázdný seznam je pro `apply_holds()`
@@ -429,6 +434,9 @@ Dvě barvy schválně — obě stránky sedí na ploše vedle sebe a jinak by se
    commitem** + obsah `origin/main`. Ostrý pohled do prohlížeče zůstává na majiteli.
 
 ## Nedávné změny
+
+- 2026-10-21: **ozvěna přímého prodeje se nehlásí jen do logu** — pole `echo` u přímého
+  prodeje, archivní řádek ozvěny hned `stale` (viz „Předrezervace a přímý prodej").
 
 - 2026-10-06: **MULTI mód bezpečně** — ochranná doba `OUT_GRACE_DAYS`, zahazování ozvěn
   `@villarudolf.com`, převzetí klíče ruční kopie (`adopt_mirror_uidh`), hlášení zmizelých
