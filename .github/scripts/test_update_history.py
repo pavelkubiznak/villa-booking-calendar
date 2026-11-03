@@ -871,6 +871,55 @@ def test_outbound_feeds_partial_snapshot():
           str([(e['platform'], e['uidh']) for e in hist if e['start'] == iso(60)]))
     check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout)
 
+def test_direct_sale_echo_is_reported():
+    """Ozvěna přímého prodeje se zahazuje — ale ne beze stopy. Nová rezervace z platformy
+    na přesně tentýž termín (prodaná dřív, než platforma importovala náš blok) vypadá
+    v datech stejně jako ruční blokace; odliší je jen majitel v extranetu. Proto přímý
+    prodej nese `echo` s platformami, které jeho noci hlásí, a archivní řádek ozvěny
+    rovnou zestárne (živý dělal v hlídači červenou dvojitou rezervaci, 23. 9. 2026)."""
+    print('\nOZVĚNA PŘÍMÉHO PRODEJE — zahozená, ale nahlášená')
+    uh = load_module()
+    d_ = tempfile.mkdtemp(prefix='vr-holdecho-')
+    open(os.path.join(d_, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('ech-1@e-chalupy.cz', 'Rezervace', d(10), d(14)),
+        # majitelova ruční blokace v e-chalupách na termín přímého prodeje
+        vevent('ech-blok@e-chalupy.cz', 'Blokace', d(40), d(47)),
+        # rezervace z Airbnb přesně na termín jiného přímého prodeje
+        vevent('nova@airbnb.com', 'Reserved', d(60), d(67))))
+    json.dump([{'uidh': '1111111111111111', 'start': iso(40), 'end': iso(47), 'kind': 'direct'},
+               {'uidh': '2222222222222222', 'start': iso(60), 'end': iso(67), 'kind': 'hold',
+                'holdUntil': iso(5)},
+               {'uidh': '3333333333333333', 'start': iso(80), 'end': iso(87), 'kind': 'direct'}],
+              open(os.path.join(d_, 'holds.json'), 'w'))
+    blok = uh.uid_hash('ech-blok@e-chalupy.cz')
+    # blokace prošla do archivu dřív, než přímý prodej vznikl — teď by dobíhala živá
+    seed = [{'uidh': blok, 'start': iso(40), 'end': iso(47), 'platform': 'E-chalupy',
+             'firstSeen': ago(5), 'lastSeen': ago(0), 'stale': False}]
+    cwd = workdir(seed)
+    r = run(cwd, '--fixtures', d_)
+    check('ran', r.returncode == 0, r.stderr.strip()[:300])
+    by = {e['uidh']: e for e in json.loads(read(cwd, 'history.json'))}
+    check('přímý prodej nese platformu ozvěny', by.get('1111111111111111', {}).get('echo') == ['E-chalupy'],
+          str(by.get('1111111111111111')))
+    check('i předrezervace — nová rezervace z Airbnb se neztratí beze stopy',
+          by.get('2222222222222222', {}).get('echo') == ['Airbnb'], str(by.get('2222222222222222')))
+    check('přímý prodej bez ozvěny pole nemá', 'echo' not in by.get('3333333333333333', {'echo': 1}))
+    check('archivní řádek ozvěny je hned duch', by.get(blok, {}).get('stale') is True, str(by.get(blok)))
+    check('ozvěna z Airbnb do archivu nepřibyla',
+          uh.uid_hash('nova@airbnb.com') not in by)
+    check('log se ptá', 'NEW booking on the same nights' in r.stdout, r.stdout[-500:])
+    check('žádná falešná dvojitá rezervace', 'REAL double booking' not in r.stdout)
+
+    # ozvěna zmizí (majitel blokaci zrušil) → pole zmizí taky
+    open(os.path.join(d_, 'E-chalupy.ics'), 'w', encoding='utf-8').write(calendar(
+        vevent('ech-1@e-chalupy.cz', 'Rezervace', d(10), d(14))))
+    r = run(cwd, '--fixtures', d_)
+    check('druhý běh: ran', r.returncode == 0, r.stderr.strip()[:300])
+    by = {e['uidh']: e for e in json.loads(read(cwd, 'history.json'))}
+    check('druhý běh: bez ozvěny bez pole', 'echo' not in by.get('1111111111111111', {'echo': 1})
+          and 'echo' not in by.get('2222222222222222', {'echo': 1}), str(by.get('1111111111111111')))
+
+
 def test_own_echo_never_a_booking():
     """Náš vlastní blok (data/out/*.ics), který platforma importovala a posílá dál
     (e-chalupy to dělají), není rezervace — v žádném módu, z žádného feedu."""
@@ -1040,6 +1089,7 @@ if __name__ == '__main__':
     test_megaubytko_channel()
     test_outbound_feeds_hub_mode()
     test_outbound_feeds_partial_snapshot()
+    test_direct_sale_echo_is_reported()
     test_own_echo_never_a_booking()
     test_mirror_keeps_sprava_link()
     test_vanished_feed_stays_alert()
