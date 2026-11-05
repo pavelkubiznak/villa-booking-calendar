@@ -360,6 +360,15 @@
     "stale": true
   },
   {
+    "uidh": "fc7625b87d6707e2",
+    "start": "2027-04-16",
+    "end": "2027-04-18",
+    "platform": "Booking.com",
+    "firstSeen": "2026-11-05",
+    "lastSeen": "2026-11-05",
+    "stale": false
+  },
+  {
     "uidh": "c161e61dd8621520",
     "start": "2027-04-29",
     "end": "2027-05-02",
