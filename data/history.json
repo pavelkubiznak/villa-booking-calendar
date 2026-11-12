@@ -306,6 +306,15 @@
     "stale": false
   },
   {
+    "uidh": "ec2a47831bb70519",
+    "start": "2027-01-14",
+    "end": "2027-01-17",
+    "platform": "Airbnb",
+    "firstSeen": "2026-11-12",
+    "lastSeen": "2026-11-12",
+    "stale": false
+  },
+  {
     "uidh": "12944ec429fdc789",
     "start": "2027-01-15",
     "end": "2027-01-17",
@@ -347,6 +356,15 @@
     "end": "2027-03-07",
     "platform": "Booking.com",
     "firstSeen": "2026-08-24",
+    "lastSeen": "2026-11-12",
+    "stale": false
+  },
+  {
+    "uidh": "bbf85e4ce17cce12",
+    "start": "2027-03-08",
+    "end": "2027-03-14",
+    "platform": "E-chalupy",
+    "firstSeen": "2026-11-12",
     "lastSeen": "2026-11-12",
     "stale": false
   },
