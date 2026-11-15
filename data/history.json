@@ -387,6 +387,15 @@
     "stale": true
   },
   {
+    "uidh": "d22948f48ec6e546",
+    "start": "2027-04-01",
+    "end": "2027-04-04",
+    "platform": "Airbnb",
+    "firstSeen": "2026-11-15",
+    "lastSeen": "2026-11-15",
+    "stale": false
+  },
+  {
     "uidh": "fc7625b87d6707e2",
     "start": "2027-04-16",
     "end": "2027-04-18",
