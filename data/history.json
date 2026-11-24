@@ -342,6 +342,16 @@
     "stale": false
   },
   {
+    "uidh": "691ae150865cfaef",
+    "start": "2027-02-14",
+    "end": "2027-02-20",
+    "platform": "Přímá",
+    "firstSeen": "2026-11-24",
+    "lastSeen": "2026-11-24",
+    "kind": "direct",
+    "stale": false
+  },
+  {
     "uidh": "19d51f88e4ed6e00",
     "start": "2027-02-20",
     "end": "2027-02-27",
