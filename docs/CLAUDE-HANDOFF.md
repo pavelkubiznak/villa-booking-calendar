@@ -62,9 +62,15 @@ Sémantika:
 - `firstSeen` / `lastSeen` = datum běhu Actionu, kdy se `uidh` ve feedu objevil poprvé / naposled.
   `lastSeen: null` = záznam je starší než zavedení sledování a ve feedu už není.
 - `stale: true` = feed ho neuvádí déle než `STALE_AFTER_DAYS` (2 dny — přežije výpadek Actionu).
+  Výjimka: ozvěna přímého prodeje (událost z feedu se stejnými nocemi) je `stale` hned.
 - `kind` ∈ `hold | direct` — **jen u přímého prodeje**, u záznamů z feedu chybí.
   `hold` = předrezervace (vystavená zálohová faktura), `holdUntil` = do kdy drží termín.
   `direct` = potvrzená přímá rezervace, chová se jako běžný pobyt.
+- `echo` = **jen u přímého prodeje**, a jen když ho nějaký feed hlásí se shodnými nocemi:
+  seznam platforem, např. `["E-chalupy"]`. Ta událost se zahazuje jako ozvěna (náš blok,
+  ruční blokace majitele) — jenže stejně by vypadala i **nová rezervace** prodaná na tentýž
+  termín, než platforma stihla náš blok importovat. Rozhodne majitel v extranetu; `/sprava/`
+  to ukazuje a VrConflictWatch při prvním výskytu platformy pošle e-mail (od 2026-10-21).
 - Archiv se prořezává na **18 měsíců** zpět (dle `end`).
 - Jméno hosta si majitel dohledá v extranetu platformy podle data + platformy.
 

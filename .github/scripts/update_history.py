@@ -134,6 +134,12 @@ Three rules keep this from causing the noise the calendar was just cleaned of:
     (Until 2026-09-17 it was the other way round: the hold was dropped. Once the
     outbound feeds went live every direct sale came back as an anonymous E-chalupy
     booking and lost its pre-booking look.)
+    Dropped is not silent: the data cannot tell such an echo from a NEW platform
+    booking on the very same nights (sold before the platform imported our block), so
+    the direct sale carries `echo` = the platforms reporting its nights, /sprava/ shows
+    it and VrConflictWatch mails the owner once per new platform to check the extranet.
+    The echo's own archive row turns `stale` at once instead of after STALE_AFTER_DAYS
+    (while live it drew a red double booking against the direct sale).
   * Holds never go stale. They are absent from every feed by definition; expiry is the
     database's job (`vr_public_holds()` simply stops returning an expired hold, so the
     term frees itself with no cron anywhere).
@@ -1226,6 +1232,30 @@ def main():
     for line in apply_holds(history, holds, events, today_s, prune_missing=holds_complete):
         print('  direct: ' + line)
 
+    # Zahozená ozvěna se nesmí ztratit beze stopy. Data ji od NOVÉ rezervace na přesně
+    # tentýž termín neodliší (platforma prodala dřív, než stihla importovat náš blok;
+    # host bez jména vypadá stejně jako ruční blokace) — rozhodnout to umí jen majitel
+    # pohledem do extranetu. Přímý prodej proto nese `echo` = platformy, které jeho noci
+    # hlásí; /sprava/ to ukáže a VrConflictWatch při prvním výskytu platformy pošle
+    # e-mail „ověř". Jen názvy platforem, nic o hostovi.
+    echo_by_span = {}
+    for e in echoes:
+        echo_by_span.setdefault((e['start'], e['end']), set()).add(e['platform'])
+    for h in history.values():
+        if h.get('kind') not in HOLD_KINDS:
+            continue
+        plats = echo_by_span.get((h['start'], h['end']))
+        if plats:
+            h['echo'] = sorted(plats)
+            print(f"  direct: {h['start']}→{h['end']} reported also by {', '.join(h['echo'])} "
+                  f"— own block, or a NEW booking on the same nights? (/sprava/ asks the owner)")
+        else:
+            h.pop('echo', None)
+    # Archivní řádek té ozvěny by jinak zůstal živý ještě STALE_AFTER_DAYS (feed ho hlásí,
+    # jen se zahazuje, takže lastSeen neroste) — a do té doby svítil v hlídači jako
+    # červená dvojitá rezervace s přímým prodejem (23. 9. 2026). Rovnou na ducha.
+    echo_uidhs = {e['uidh'] for e in echoes}
+
     # Outbound feeds — from THIS run's events and direct sales (`known`: archived direct
     # sales stand in only where the database did not answer in full).
     outbound = out_entries(events, known, history, multi, today_s, delivered)
@@ -1243,7 +1273,10 @@ def main():
         # Přímý prodej se z feedu nepotvrzuje — jeho platnost hlídá databáze
         # (`vr_public_holds()` propadlý hold prostě nevrátí), takže by ho stárnutí
         # jen umazalo na ducha.
-        e['stale'] = False if e.get('kind') in HOLD_KINDS else is_stale(e.get('lastSeen'), today)
+        if e.get('kind') in HOLD_KINDS:
+            e['stale'] = False
+        else:
+            e['stale'] = e['uidh'] in echo_uidhs or is_stale(e.get('lastSeen'), today)
 
     output = sorted(history.values(), key=lambda e: e['start'])
 
